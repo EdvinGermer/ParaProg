@@ -1,0 +1,3 @@
+n=48
+Integral is approx. 2.5580414074943478
+Time: 1.801195 s

@@ -1,0 +1,3 @@
+n=16
+Integral is approx. 2.5580414074936408
+Time: 5.171780 s

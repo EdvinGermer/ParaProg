@@ -1,0 +1,3 @@
+n=1
+Integral is approx. 2.5580414075004643
+Time: 75.745053 s
