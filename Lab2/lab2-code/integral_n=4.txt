@@ -1,0 +1,3 @@
+n=4
+Integral is approx. 2.5580414074895925
+Time: 19.167387 s
