@@ -15,6 +15,7 @@ fx = fx[1:]             # f vector
 
 ############## Derivative ##############
 
+#with open('/home/maya/public/PDP_Assignment1/output96_4_ref.txt', 'r') as f:
 with open('/home/maya/public/PDP_Assignment1/output96_1_ref.txt', 'r') as f:
     dfx = np.fromstring(f.read(), sep=' ')
 
@@ -51,6 +52,18 @@ plt.savefig('plot.png')
 
 
 ############## Error estimation ##############
+print("\n\n")
+
+print("\nInput:")
+print(fx)
+
+print("\nMy derivative:")
+print(my_dfx)
+
+print("\nCorrect derivative:")
+print(dfx)
 
 error = my_dfx-dfx
-print("Max error = ", max(error))
+print("\nMax error = ", max(error))
+
+print("\n\n")

@@ -3,9 +3,23 @@
 // Files:
 // ls /home/maya/public/PDP_Assignment1/
 
-// YOU MAS ASSUME THAT THE NUMBER OF VALUES IS DIVISBLE BY THE NUMBER OF PROCESSES
+/* 96 DATAPOINTS */
 // mpirun --bind-to none -n 1 ./stencil /home/maya/public/PDP_Assignment1/input96.txt ./output.txt 1
+// mpirun --bind-to none -n 2 ./stencil /home/maya/public/PDP_Assignment1/input96.txt ./output.txt 1
+// mpirun --bind-to none -n 4 ./stencil /home/maya/public/PDP_Assignment1/input96.txt ./output.txt 1
 // mpirun --bind-to none -n 8 ./stencil /home/maya/public/PDP_Assignment1/input96.txt ./output.txt 1
+
+/* 2.000.000 DATAPOINTS */
+// mpirun --bind-to none -n 1 ./stencil /home/maya/public/PDP_Assignment1/input2000000.txt ./output.txt 1
+// mpirun --bind-to none -n 2 ./stencil /home/maya/public/PDP_Assignment1/input2000000.txt ./output.txt 1
+// mpirun --bind-to none -n 4 ./stencil /home/maya/public/PDP_Assignment1/input2000000.txt ./output.txt 1
+// mpirun --bind-to none -n 8 ./stencil /home/maya/public/PDP_Assignment1/input2000000.txt ./output.txt 1
+
+/* 100.000.000 DATAPOINTS */
+// mpirun --bind-to none -n 1 ./stencil /home/maya/public/PDP_Assignment1/input100000000.txt ./output.txt 1
+// mpirun --bind-to none -n 2 ./stencil /home/maya/public/PDP_Assignment1/input100000000.txt ./output.txt 1
+// mpirun --bind-to none -n 4 ./stencil /home/maya/public/PDP_Assignment1/input100000000.txt ./output.txt 1
+// mpirun --bind-to none -n 8 ./stencil /home/maya/public/PDP_Assignment1/input100000000.txt ./output.txt 1
 
 
 int main(int argc, char **argv)
@@ -122,14 +136,19 @@ int main(int argc, char **argv)
 			double result = 0;
 			for (int j=0; j<STENCIL_WIDTH; j++) // Sweep stencil 
 			{
-				int index = i - EXTENT + j;
-				if (index < 0)
-				{	
-					//printf("i = %d, index = %d\n",i, index+EXTENT);
-					result += STENCIL[j]*first[index+EXTENT];
+				if (size==1) // Default serial code
+				{
+					int index = (i - EXTENT + j + num_values) % num_values;
+					result += STENCIL[j] * input[index];
 				}
-				else
-					result += STENCIL[j]*local_input[index];
+				else // Parallell code
+				{
+					int index = i - EXTENT + j;
+					if (index < 0)
+						result += STENCIL[j]*first[index+EXTENT];
+					else
+						result += STENCIL[j]*local_input[index];
+				}
 			}
 			local_output[i] = result;
 		}
@@ -149,13 +168,19 @@ int main(int argc, char **argv)
 			double result = 0;
 			for (int j=0; j<STENCIL_WIDTH; j++) // Sweep stencil 
 			{
-				int index = i - EXTENT + j;
-				if (index >= batch_size)
-					{
+				if (size==1) // Default serial code
+				{
+					int index = (i - EXTENT + j) % num_values;
+					
+				}
+				else // Parallel code
+				{
+					int index = i - EXTENT + j;
+					if (index >= batch_size)
 						result += STENCIL[j]*last[index-batch_size];
-					}
-				else
-					result += STENCIL[j]*local_input[index];
+					else
+						result += STENCIL[j]*local_input[index];
+				}
 			}
 			local_output[i] = result;
 		}
@@ -173,7 +198,7 @@ int main(int argc, char **argv)
 
 
 	/* SEND DATA BACK TO RANK 0 */
-	MPI_Gather(local_input, batch_size, MPI_DOUBLE, output, batch_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	MPI_Gather(local_output, batch_size, MPI_DOUBLE, output, batch_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
 
 	/* PRINT TIME */
@@ -181,12 +206,13 @@ int main(int argc, char **argv)
 
 
 	/*  I/O HANDLED BY RANK 0 */
-#ifdef PRODUCE_OUTPUT_FILE
-	if (0 != write_output(output_name, output, num_values)) // Write result
+	if (rank == 0)
 	{
-		return 2;
+		#ifdef PRODUCE_OUTPUT_FILE
+		if (0 != write_output(output_name, output, num_values)) // Write result
+			return 2;
+		#endif
 	}
-#endif
 
 	
 	/* CLEAN UP*/
