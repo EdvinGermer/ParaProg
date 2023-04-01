@@ -88,7 +88,7 @@ int main(int argc, char **argv)
 	int next_rank = (rank + 1) % size;
 
 	MPI_Request send_reqs[2], recieve_reqs[2]; // 2 send and 2 recieve for each process
-
+	
 	for (int s=0; s<num_steps; s++) // Repeatedly apply stencil
 	{
 		com_start = MPI_Wtime();
@@ -101,12 +101,35 @@ int main(int argc, char **argv)
 			// Send to the next rank
 			MPI_Isend(&local_input[batch_size-EXTENT], EXTENT, MPI_DOUBLE, next_rank, rank, MPI_COMM_WORLD, &send_reqs[1]); // Send last 2
 			MPI_Irecv(&first[0], EXTENT, MPI_DOUBLE, prev_rank, prev_rank, MPI_COMM_WORLD, &recieve_reqs[1]); // Recieve first 2
-		
-			// Wait for all comms to be succesful
+			
+			/* // Send to previous rank
+			if (rank==0) // start from 0
+			{
+				MPI_Isend(&local_input[0], EXTENT, MPI_DOUBLE, prev_rank, rank, MPI_COMM_WORLD, &send_reqs[0]); // Send first 2
+				MPI_Irecv(&last[0], EXTENT, MPI_DOUBLE, next_rank, next_rank, MPI_COMM_WORLD, &recieve_reqs[0]); // Recieve last 2
+			}
+			else
+			{
+				MPI_Irecv(&last[0], EXTENT, MPI_DOUBLE, next_rank, next_rank, MPI_COMM_WORLD, &recieve_reqs[0]); // Recieve last 2
+				MPI_Isend(&local_input[0], EXTENT, MPI_DOUBLE, prev_rank, rank, MPI_COMM_WORLD, &send_reqs[0]); // Send first 2
+			}
+
+
+			// Send to the next rank
+			if (rank==0) // start from 0
+			{
+				MPI_Isend(&local_input[batch_size-EXTENT], EXTENT, MPI_DOUBLE, next_rank, rank, MPI_COMM_WORLD, &send_reqs[1]); // Send last 2
+				MPI_Irecv(&first[0], EXTENT, MPI_DOUBLE, prev_rank, prev_rank, MPI_COMM_WORLD, &recieve_reqs[1]); // Recieve first 2
+			}
+			else
+			{
+				MPI_Irecv(&first[0], EXTENT, MPI_DOUBLE, prev_rank, prev_rank, MPI_COMM_WORLD, &recieve_reqs[1]); // Recieve first 2
+				MPI_Isend(&local_input[batch_size-EXTENT], EXTENT, MPI_DOUBLE, next_rank, rank, MPI_COMM_WORLD, &send_reqs[1]); // Send last 2
+			} */
+			
 			MPI_Waitall(2, send_reqs, MPI_STATUSES_IGNORE);
 			MPI_Waitall(2, recieve_reqs, MPI_STATUSES_IGNORE);
 		}
-	
 		com_end = MPI_Wtime();
 		
 		stencil_start = MPI_Wtime();
@@ -119,9 +142,9 @@ int main(int argc, char **argv)
 				if (size==1) // Default serial code
 				{
 					int index = (i - EXTENT + j + num_values) % num_values;
-					result += STENCIL[j] * local_input[index];
+					result += STENCIL[j] * input[index];
 				}
-				else // Parallel code
+				else // Parallell code
 				{
 					int index = i - EXTENT + j;
 					if (index < 0)
@@ -152,7 +175,7 @@ int main(int argc, char **argv)
 				if (size==1) // Default serial code
 				{
 					int index = (i - EXTENT + j) % num_values;
-					result += STENCIL[j] * local_input[index];
+					result += STENCIL[j] * input[index];
 				}
 				else // Parallel code
 				{
@@ -175,43 +198,11 @@ int main(int argc, char **argv)
 		}
 	}
 
-	/* LOCAL TIME */
-	double local_execution_time = MPI_Wtime() - start;
-	double communication_time = com_end-com_start;
-	double stencil_time = stencil_end-stencil_start;
+	/* PRINT TIME */
+	double my_execution_time = MPI_Wtime() - start;
+	printf("    Rank %d took %f seconds\n",rank, my_execution_time);
+	//printf("    	Com_time = %f, stencil_time = %f\n",com_end-com_start, stencil_end-stencil_start);
 
-	//printf("    Rank %d took %f seconds\n",rank, local_execution_time);
-	//printf("    	Com_time = %f, stencil_time = %f\n",communication_time, stencil_end-stencil_time);
-
-
-	/* FIND LONGEST TIME */
-	double timings0[size];
-	double timings1[size];
-	double timings2[size];
-	MPI_Gather(&local_execution_time, 1, MPI_DOUBLE, timings0, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-	MPI_Gather(&communication_time, 1, MPI_DOUBLE, timings1, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-	MPI_Gather(&stencil_time, 1, MPI_DOUBLE, timings2, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-	if (rank == 0)
-	{
-		double max0 = 0;
-		double max1 = 0;
-		double max2 = 0;
-		for (int i=0; i<size;i++)
-		{
-			double time0 = timings0[i];
-			double time1 = timings1[i];
-			double time2 = timings2[i];
-			if (time0>max0)
-				max0 = time0;
-			if (time1>max1)
-				max1 = time1;
-			if (time2>max2)
-				max2 = time2;
-		}
-		printf("    LONGEST TOTAL TIME = %f\n", max0);
-		printf("    LONGEST COMMUNICATION TIME = %f\n", max1);
-		printf("    LONGEST STENCIL TIME = %f\n", max2);
-	}
 
 	/* FINAL COLLECTION - SEND DATA BACK TO RANK 0 */
 	MPI_Gather(local_output, batch_size, MPI_DOUBLE, output, batch_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
