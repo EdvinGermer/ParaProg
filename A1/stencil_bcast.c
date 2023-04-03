@@ -31,10 +31,11 @@ int main(int argc, char **argv)
 	int num_values;                // Total elements in input data
 	double* input;
 	double* output;
-	int rank, size;
+	
 
 	/* SETUP MPI */
 	MPI_Status status;
+	int rank, size;
 
 	MPI_Init(&argc, &argv);               /* Initialize MPI               */
 	MPI_Comm_size(MPI_COMM_WORLD, &size); /* Get the number of processors */
@@ -74,68 +75,56 @@ int main(int argc, char **argv)
 	const int STENCIL_WIDTH = 5;
 	const int EXTENT = STENCIL_WIDTH/2;
 	const double STENCIL[] = {1.0/(12*h), -8.0/(12*h), 0.0, 8.0/(12*h), -1.0/(12*h)};
-
+ 
 
 	/* START TIMER */
 	double start = MPI_Wtime();
 	double stencil_start, stencil_end, com_end, com_start;
 
-
-	/* APPLY STENCIL ON ALL PROCESSES*/
-	double first[EXTENT];
-	double last[EXTENT];
-	int prev_rank = (rank - 1 + size) % size;
-	int next_rank = (rank + 1) % size;
-
 	double communication_time = 0.0;
-	double stencil_time = 0.0; 
+	double stencil_time = 0.0;
 
-	MPI_Request send_reqs[2], recieve_reqs[2]; // 2 send and 2 recieve for each process
 
-	// Initialize sending 
-	com_start = MPI_Wtime();
-	if (size > 1)
+	/* BROADCAST HALO ELEMENTS */
+	double halo[4*size]; // Array for storing halo elements
+	if (rank==0)
 	{
-		MPI_Send_init(&local_input[0], EXTENT, MPI_DOUBLE, prev_rank, rank, MPI_COMM_WORLD, &send_reqs[0]);
-		MPI_Recv_init(&last[0], EXTENT, MPI_DOUBLE, next_rank, next_rank, MPI_COMM_WORLD, &recieve_reqs[0]);
-		MPI_Send_init(&local_input[batch_size - EXTENT], EXTENT, MPI_DOUBLE, next_rank, rank, MPI_COMM_WORLD, &send_reqs[1]);
-		MPI_Recv_init(&first[0], EXTENT, MPI_DOUBLE, prev_rank, prev_rank, MPI_COMM_WORLD, &recieve_reqs[1]);
+		for(int i=0;i<EXTENT*2*size;i+=4)
+		{
+			int idx = i*batch_size;
+
+			halo[i] = input[idx];
+			halo[i + 1] = input[idx+1];
+
+			halo[i + 2] = input[idx+batch_size-2];
+			halo[i + 3] = input[idx+batch_size+-1];
+		}
 	}
+	com_start = MPI_Wtime();
+	MPI_Bcast(&halo, 4*size, MPI_DOUBLE, 0, MPI_COMM_WORLD); // Send to all
 	com_end = MPI_Wtime();
 	communication_time += com_end-com_start;
 
+
+	/* FIND EACH RANKS HALO ELEMENTS */
+	double first[EXTENT];
+	double last[EXTENT];
+
+	int first_halo_idx = (rank * 4 + 4 * size - 2) % (4 * size);
+	int last_halo_idx = (rank * 4 + 2) % (4 * size);
+
+	first[0] = halo[first_halo_idx];
+	first[1] = halo[first_halo_idx + 1];
+
+	last[0] = halo[last_halo_idx];
+	last[1] = halo[last_halo_idx + 1];
+
+
+	/* APPLY STENCIL ON ALL PROCESSES*/
+	stencil_start = MPI_Wtime();
 	for (int s=0; s<num_steps; s++) // Repeatedly apply stencil
 	{
-		com_start = MPI_Wtime();
-		if (size > 1)
-		{
-			MPI_Startall(2, send_reqs);
-			MPI_Startall(2, recieve_reqs);
-
-			MPI_Waitall(2, recieve_reqs, MPI_STATUSES_IGNORE);
-		}
-		com_end = MPI_Wtime();
-		communication_time += com_end-com_start;
-		
-		
-		// Apply stencil on middle elements i
-		stencil_start = MPI_Wtime();
-		for (int i=EXTENT; i<batch_size-EXTENT; i++) // Middle elements
-		{
-			double result = 0;
-			for (int j=0; j<STENCIL_WIDTH; j++) // Sweep stencil
-			{
-				int index = i - EXTENT + j;
-				result += STENCIL[j] * local_input[index];
-			}
-			local_output[i] = result;
-		}
-		stencil_end = MPI_Wtime();
-		stencil_time += stencil_end-stencil_start;
-		
-
-		// Apply stencil on first elements i
-		stencil_start = MPI_Wtime();
+		// Apply stencil on elements i
 		for (int i=0; i<EXTENT; i++)  // First two elements
 		{
 			double result = 0;
@@ -157,7 +146,18 @@ int main(int argc, char **argv)
 			}
 			local_output[i] = result;
 		}
-		// Apply stencil on last elements i
+
+		for (int i=EXTENT; i<batch_size-EXTENT; i++) // Middle elements
+		{
+			double result = 0;
+			for (int j=0; j<STENCIL_WIDTH; j++) // Sweep stencil
+			{
+				int index = i - EXTENT + j;
+				result += STENCIL[j] * local_input[index];
+			}
+			local_output[i] = result;
+		}
+
 		for (int i=batch_size-EXTENT; i<batch_size; i++) // Last two elements
 		{
 			double result = 0;
@@ -179,8 +179,6 @@ int main(int argc, char **argv)
 			}
 			local_output[i] = result;
 		}
-		stencil_end = MPI_Wtime();
-		stencil_time += stencil_end-stencil_start;
 
 		// Swap input and output
 		if (s < num_steps-1) {
@@ -189,23 +187,14 @@ int main(int argc, char **argv)
 			local_output = tmp;
 		}
 	}
-
-	// Terminate communication
-	com_start = MPI_Wtime();
-	if (size > 1)
-	{
-		MPI_Request_free(&send_reqs[0]);
-		MPI_Request_free(&send_reqs[1]);
-		MPI_Request_free(&recieve_reqs[0]);
-		MPI_Request_free(&recieve_reqs[1]);
-	}
-	com_end = MPI_Wtime();
-	communication_time += com_end-com_start;
-
+	stencil_end = MPI_Wtime();
+	stencil_time += stencil_end-stencil_start;
 
 	/* LOCAL TIME */
 	double local_execution_time = MPI_Wtime() - start;
-	printf("    Rank %d: Com_time = %f, stencil_time = %f\n",rank, communication_time, stencil_time);
+
+	//printf("    Rank %d took %f seconds\n",rank, local_execution_time);
+	//printf("    	Com_time = %f, stencil_time = %f\n",communication_time, stencil_end-stencil_time);
 
 
 	/* FIND LONGEST TIME */
@@ -249,6 +238,10 @@ int main(int argc, char **argv)
 			return 2;
 		#endif
 	}
+
+	
+	/* CLEAN UP*/
+	MPI_Finalize();
 	
 	if(rank==0)
 	{
@@ -257,9 +250,6 @@ int main(int argc, char **argv)
 	}
 	free(local_input);
 	free(local_output);
-
-	/* CLEAN UP*/
-	MPI_Finalize();
 
 	return 0;
 }
