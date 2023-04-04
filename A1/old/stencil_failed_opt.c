@@ -58,7 +58,7 @@ int main(int argc, char **argv)
 	}
 
 
-	/* SEND TOTAL NUMBER OF ELEMENTS TO ALL PROCESSES FROMT RANK 0 */
+	/* SEND TOTAL NUMBER OF ELEMENTS TO ALL PROCESSES FROM RANK 0 */
 	MPI_Bcast(&num_values, 1, MPI_INT, 0, MPI_COMM_WORLD);
 	
 	
@@ -87,14 +87,10 @@ int main(int argc, char **argv)
 	int prev_rank = (rank - 1 + size) % size;
 	int next_rank = (rank + 1) % size;
 
-	double communication_time = 0.0;
-	double stencil_time = 0.0; 
-
 	MPI_Request send_reqs[2], recieve_reqs[2]; // 2 send and 2 recieve for each process
 
 	for (int s=0; s<num_steps; s++) // Repeatedly apply stencil
 	{
-		com_start = MPI_Wtime();
 		if (size>1)
 		{
 			// Send to the previous rank
@@ -105,12 +101,9 @@ int main(int argc, char **argv)
 			MPI_Isend(&local_input[batch_size-EXTENT], EXTENT, MPI_DOUBLE, next_rank, rank, MPI_COMM_WORLD, &send_reqs[1]); // Send last 2
 			MPI_Irecv(&first[0], EXTENT, MPI_DOUBLE, prev_rank, prev_rank, MPI_COMM_WORLD, &recieve_reqs[1]); // Recieve first 2
 		}
-		com_end = MPI_Wtime();
-		communication_time += com_end-com_start;
 		
 		
 		// Apply stencil on middle elements i
-		stencil_start = MPI_Wtime();
 		for (int i=EXTENT; i<batch_size-EXTENT; i++) // Middle elements
 		{
 			double result = 0;
@@ -121,67 +114,126 @@ int main(int argc, char **argv)
 			}
 			local_output[i] = result;
 		}
-		stencil_end = MPI_Wtime();
-		stencil_time += stencil_end-stencil_start;
 
-
-		// Wait to recieve halo elements before continuing
+		// Using multiple processes. Wait to recieve halo elements and apply when recieved
 		if (size>1)
-		{
-			com_start = MPI_Wtime();
-			MPI_Waitall(2, recieve_reqs, MPI_STATUSES_IGNORE);
-			com_end = MPI_Wtime();
-			communication_time += com_end-com_start;
-		}
-		
+			{
+				int count=0;
+				int first_done=0;
+				int last_done=0;
+				int flag0, flag1;
+				while (count<2)
+				{
+					MPI_Test(&recieve_reqs[0], &flag0, MPI_STATUS_IGNORE); // Has last elements arrived?
+					MPI_Test(&recieve_reqs[1], &flag1, MPI_STATUS_IGNORE); // Has first elements arrived?
 
-		// Apply stencil on first elements i
-		stencil_start = MPI_Wtime();
-		for (int i=0; i<EXTENT; i++)  // First two elements
-		{
-			double result = 0;
-			for (int j=0; j<STENCIL_WIDTH; j++) // Sweep stencil 
-			{
-				if (size==1) // Default serial code
-				{
-					int index = (i - EXTENT + j + num_values) % num_values;
-					result += STENCIL[j] * local_input[index];
-				}
-				else // Parallel code
-				{
-					int index = i - EXTENT + j;
-					if (index < 0)
-						result += STENCIL[j]*first[index+EXTENT];
-					else
-						result += STENCIL[j]*local_input[index];
+					if (flag0==1 && last_done==0) // If recieved and not done before
+					{
+						// Apply stencil on last elements i
+						for (int i=batch_size-EXTENT; i<batch_size; i++) // Last two elements
+						{
+							double result = 0;
+							for (int j=0; j<STENCIL_WIDTH; j++) // Sweep stencil 
+							{
+								if (size==1) // Default serial code
+								{
+									int index = (i - EXTENT + j) % num_values;
+									result += STENCIL[j] * local_input[index];
+								}
+								else // Parallel code
+								{
+									int index = i - EXTENT + j;
+									if (index >= batch_size)
+										result += STENCIL[j]*last[index-batch_size];
+									else
+										result += STENCIL[j]*local_input[index];
+								}
+							}
+							local_output[i] = result;
+						}
+						count++;
+						last_done=1;
+					}
+					
+					if (flag1==1 && first_done==0)  // If recieved and not done before
+					{
+						// Apply stencil on first elements i
+						for (int i=0; i<EXTENT; i++)  // First two elements
+						{
+							double result = 0;
+							for (int j=0; j<STENCIL_WIDTH; j++) // Sweep stencil 
+							{
+								if (size==1) // Default serial code
+								{
+									int index = (i - EXTENT + j + num_values) % num_values;
+									result += STENCIL[j] * local_input[index];
+								}
+								else // Parallel code
+								{
+									int index = i - EXTENT + j;
+									if (index < 0)
+										result += STENCIL[j]*first[index+EXTENT];
+									else
+										result += STENCIL[j]*local_input[index];
+								}
+							}
+							local_output[i] = result;
+						}
+						count++;
+						first_done=1;
+					}
 				}
 			}
-			local_output[i] = result;
-		}
-		// Apply stencil on last elements i
-		for (int i=batch_size-EXTENT; i<batch_size; i++) // Last two elements
+		
+		else // Only using one process
 		{
-			double result = 0;
-			for (int j=0; j<STENCIL_WIDTH; j++) // Sweep stencil 
+			// Apply stencil on first elements i
+			for (int i=0; i<EXTENT; i++)  // First two elements
 			{
-				if (size==1) // Default serial code
+				double result = 0;
+				for (int j=0; j<STENCIL_WIDTH; j++) // Sweep stencil 
 				{
-					int index = (i - EXTENT + j) % num_values;
-					result += STENCIL[j] * local_input[index];
+					if (size==1) // Default serial code
+					{
+						int index = (i - EXTENT + j + num_values) % num_values;
+						result += STENCIL[j] * local_input[index];
+					}
+					else // Parallel code
+					{
+						int index = i - EXTENT + j;
+						if (index < 0)
+							result += STENCIL[j]*first[index+EXTENT];
+						else
+							result += STENCIL[j]*local_input[index];
+					}
 				}
-				else // Parallel code
-				{
-					int index = i - EXTENT + j;
-					if (index >= batch_size)
-						result += STENCIL[j]*last[index-batch_size];
-					else
-						result += STENCIL[j]*local_input[index];
-				}
+				local_output[i] = result;
 			}
-			local_output[i] = result;
+
+			// Apply stencil on last elements i
+			for (int i=batch_size-EXTENT; i<batch_size; i++) // Last two elements
+			{
+				double result = 0;
+				for (int j=0; j<STENCIL_WIDTH; j++) // Sweep stencil 
+				{
+					if (size==1) // Default serial code
+					{
+						int index = (i - EXTENT + j) % num_values;
+						result += STENCIL[j] * local_input[index];
+					}
+					else // Parallel code
+					{
+						int index = i - EXTENT + j;
+						if (index >= batch_size)
+							result += STENCIL[j]*last[index-batch_size];
+						else
+							result += STENCIL[j]*local_input[index];
+					}
+				}
+				local_output[i] = result;
+			}
 		}
-		stencil_end = MPI_Wtime();
-		stencil_time += stencil_end-stencil_start;
+	
 
 		// Swap input and output
 		if (s < num_steps-1) {
@@ -191,39 +243,27 @@ int main(int argc, char **argv)
 		}
 	}
 
+
 	/* LOCAL TIME */
 	double local_execution_time = MPI_Wtime() - start;
-	printf("    Rank %d: Com_time = %f, stencil_time = %f\n",rank, communication_time, stencil_time);
 
 
 	/* FIND LONGEST TIME */
-	double timings0[size];
-	double timings1[size];
-	double timings2[size];
-	MPI_Gather(&local_execution_time, 1, MPI_DOUBLE, timings0, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-	MPI_Gather(&communication_time, 1, MPI_DOUBLE, timings1, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-	MPI_Gather(&stencil_time, 1, MPI_DOUBLE, timings2, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	double timings[size];
+	MPI_Gather(&local_execution_time, 1, MPI_DOUBLE, timings, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
 	if (rank == 0)
 	{
-		double max0 = 0;
-		double max1 = 0;
-		double max2 = 0;
+		double max = 0;
 		for (int i=0; i<size;i++)
 		{
-			double time0 = timings0[i];
-			double time1 = timings1[i];
-			double time2 = timings2[i];
-			if (time0>max0)
-				max0 = time0;
-			if (time1>max1)
-				max1 = time1;
-			if (time2>max2)
-				max2 = time2;
+			double time = timings[i];
+			if (time>max)
+				max = time;
 		}
-		//printf("    LONGEST TOTAL TIME = %f\n", max0);
-		//printf("    LONGEST COMMUNICATION TIME = %f\n", max1);
-		//printf("    LONGEST STENCIL TIME = %f\n", max2);
+		printf("      LONGEST TOTAL TIME: %f\n", max);
 	}
+
 
 	/* FINAL COLLECTION - SEND DATA BACK TO RANK 0 */
 	MPI_Gather(local_output, batch_size, MPI_DOUBLE, output, batch_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);

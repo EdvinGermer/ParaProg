@@ -15,8 +15,8 @@ fx = fx[1:]             # f vector
 
 ############## Derivative ##############
 
-#with open('/home/maya/public/PDP_Assignment1/output96_4_ref.txt', 'r') as f:
-with open('/home/maya/public/PDP_Assignment1/output96_1_ref.txt', 'r') as f:
+with open('/home/maya/public/PDP_Assignment1/output96_4_ref.txt', 'r') as f:
+#with open('/home/maya/public/PDP_Assignment1/output96_1_ref.txt', 'r') as f:
     dfx = np.fromstring(f.read(), sep=' ')
 
 with open('output.txt', 'r') as f:
@@ -31,7 +31,7 @@ fig, ax = plt.subplots()
 # Plot the data on the axis
 ax.plot(x, fx, 'r-', label='Data')
 ax.plot(x, dfx, 'b-', label='Correct Derivative')
-ax.plot(x, my_dfx, 'g*', label='My Derivative')
+ax.plot(x, my_dfx, 'g*', label='Our Derivative')
 
 
 
@@ -43,7 +43,7 @@ plt.yticks(fontsize=14)
 ax.legend()
 ax.grid(True)
 
-ax.set_title('A1')
+ax.set_title('Output Validation - Fourth Derivative')
 
 # Show the plot
 plt.savefig('plot.png')
