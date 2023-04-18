@@ -5,7 +5,7 @@ void main(int argc, char *argv[]) {
 
 	int ierror, rank, size;
 
-	int nrecvd, sum, i, index, flag;
+	int nrecvd, sum, i, index, flag; 
 	MPI_Status send_status[10], recv_status[10];
 	MPI_Request request[10];
 	int out[10], in[10];
