@@ -1,0 +1,5 @@
+// Files @ /crex/proj/uppmax2023-2-13/nobackup/matmul_indata/input4.txt
+
+// module load gcc openmpi
+// make matmul
+// ./matmul.sh

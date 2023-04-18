@@ -229,7 +229,7 @@ int main(int argc, char **argv)
 	MPI_Gather(local_output, batch_size, MPI_DOUBLE, output, batch_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
 	
-	/*  I/O HANDLED BY RANK 0 */
+	/*  I/O HANDLED BY RANK 0 */ 
 	if (rank == 0)
 	{
 		#ifdef PRODUCE_OUTPUT_FILE

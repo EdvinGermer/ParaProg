@@ -15,7 +15,10 @@ void print_matrix(double *matrix, int rows, int cols) {
     printf("\n");
 }
 
+
+
 // mpirun --bind-to none -n 2 ./matmul ./input4.txt output.txt
+
 
 int main(int argc, char *argv[])
 {
@@ -71,13 +74,23 @@ int main(int argc, char *argv[])
             }
         }
         fclose(input); // Close the input file
+
+        // Check matrices were read correctly
+        printf("Matrix A:\n");
+        print_matrix(A, n,n);
+        printf("\n\nMatrix B:\n");
+        print_matrix(B, n,n);
+        printf("__________________________\n");
     }
+
+
 
     /* DISTRIBUTE DATA */
     double start = MPI_Wtime(); // Record the start time
 
     // Broadcast the value of n to all processes
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    //printf("Rank %d out of %d\n",rank,size);
 
     // Determine block size
     int m = n/size;
@@ -89,6 +102,8 @@ int main(int argc, char *argv[])
 
     // Send block of rows of A from rank 0 to A_local on each rank
     MPI_Scatter(A, n * m, MPI_DOUBLE, A_local, n * m, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    //printf("Rank %d, matrix A:\n",rank);
+    //print_matrix(A_local, m,n);
 
     // Send block of cols of B from rank 0 to B_local on each rank
     if (rank == 0)
@@ -106,13 +121,22 @@ int main(int argc, char *argv[])
         for (int j = 0; j < n; j++)
             MPI_Recv(&B_local[j * m], m, MPI_DOUBLE, 0, j, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
+    //printf("Rank %d, matrix B:\n",rank);
+    //print_matrix(B_local, n,m);
+
+    if (rank==0)
+        printf("__________________________\n");
     
+
+
     /* PERFORM MATRIX MULTIPLICATION */
+    // A_local has size (m,n) = m*n elements
+    // B_local has size (n,m) = m*n elements
+    // C_local has size (m,n) = size*m*n elements
+    // Each stage calculates (m,m) elements in local
+
     for (int stage=0; stage<size; stage++) // Iterate over all stages (size-1 stages)
     {   
-        // Index where to write each block in the local C_matrix
-        int start_col = (m * (rank+stage)) % n;
-        
         // Matrix multiplication for current stage
         double *block = (double *)malloc(m * m * sizeof(double));
         for (int i = 0; i < m; i++) // Rows
@@ -123,14 +147,32 @@ int main(int argc, char *argv[])
                     {
                         sum += A_local[i * n + k] * B_local[k * m + j];
                     }
-                    C_local[i * n + (start_col + j)] = sum;
+                    block[i*m+j] = sum;
                 }
+
+        // Print block matrix
+        printf("Rank %d, block matrix:\n",rank);
+        print_matrix(block,m,m);
+
+        // Copy block into C_local
+        int start_col = (m * (rank+stage)) % n;
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j < m; j++) {
+                C_local[i * n + (start_col + j)] = block[i * m + j];
+            }
+        }
+        free(block);
+
+        // Print C_local matrix
+        printf("Rank %d, c_local matrix:\n",rank);
+        print_matrix(C_local,m,n);
 
         // Shift B_local one step
         double *B_temp = (double *)malloc(n * m * sizeof(double));
         int prev = (rank - 1 + size) % size; // recieve from previous
         int next = (rank + 1) % size; // Send to next
         MPI_Sendrecv(B_local, m * n, MPI_DOUBLE, next, 1, B_temp, m * n, MPI_DOUBLE, prev, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
 
         // Overwrite old B_local with temp and free memory
         memcpy(B_local, B_temp, m * n * sizeof(double));
@@ -142,40 +184,15 @@ int main(int argc, char *argv[])
         C = (double *)malloc(n * n * sizeof(double));
     MPI_Gather(C_local, m * n, MPI_DOUBLE, C, m * n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    /* LOCAL TIME */
-	double local_execution_time = MPI_Wtime() - start;
-
-    /* WRITE RESULTS TO OUTPUT */
-    if (rank==0)
+    /* PRINT FINAL CALCULATION */
+    if (rank == 0)
     {
-        FILE *output = fopen(argv[2], "w");
-        for (int i = 0; i < n; i++)
-        {
-            for (int j = 0; j < n; j++)
-            {
-                fprintf(output, "%.6lf ", C[i * n + j]);
-            }
-            fprintf(output, "\n");
-        }
-        fclose(output);
+        printf("__________________________\n");
+        printf("Result Matrix C:\n");
+        print_matrix(C, n, n);
     }
 
-    /* FIND LONGEST TIME */
-	double timings[size];
-	MPI_Gather(&local_execution_time, 1, MPI_DOUBLE, timings, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-	if (rank == 0)
-	{
-		double max = 0;
-		for (int i=0; i<size;i++)
-		{
-			double time = timings[i];
-			if (time>max)
-				max = time;
-		}
-		printf("%f\n", max);
-	}
-    
     /* FREE MEMORY */
     if (rank==0)
     {
