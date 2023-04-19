@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
 
     
     /* PERFORM MATRIX MULTIPLICATION */
-    for (int stage=0; stage<size; stage++) // Iterate over all stages (size-1 stages)
+    for (int stage=0; stage<size; stage++) // Iterate over all stages
     {   
         // Index where to write each block in the local C_matrix
         int start_col = (m * (rank+stage)) % n;
@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
         int to = (rank + 1) % size; // Send to next
         MPI_Sendrecv(B_local, m * n, MPI_DOUBLE, from, 1, B_temp, m * n, MPI_DOUBLE, to, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        // Overwrite old B_local with temp and free memory
+        // Overwrite old B_local with temp and free memory 
         memcpy(B_local, B_temp, m * n * sizeof(double));
         free(B_temp);
     }
