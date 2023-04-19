@@ -99,22 +99,27 @@ int main(int argc, char *argv[])
 
         // Send data to other processes
         for (int i = 1; i < size; i++) // Other processes
-            for (int j = 0; j < n; j++) // Element index
-                MPI_Send(&B[j * n + i * m], m, MPI_DOUBLE, i, j, MPI_COMM_WORLD);
+            for (int j = 0; j < n; j++) // Iterate over rows
+                {
+                    // j*n = row index,
+                    // i*m = where column block start on that row
+                    // send m elements per MPI_send (column thickness)
+                    MPI_Send(&B[j * n + i * m], m, MPI_DOUBLE, i, j, MPI_COMM_WORLD); 
+                } 
+                
     }
     else // Other processes recieves data from 0
         for (int j = 0; j < n; j++)
             MPI_Recv(&B_local[j * m], m, MPI_DOUBLE, 0, j, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
     
     /* PERFORM MATRIX MULTIPLICATION */
-    for (int stage=0; stage<size; stage++) // Iterate over all stages (size-1 stages)
+    for (int stage=0; stage<size; stage++) // Iterate over all stages
     {   
         // Index where to write each block in the local C_matrix
         int start_col = (m * (rank+stage)) % n;
         
         // Matrix multiplication for current stage
-        double *block = (double *)malloc(m * m * sizeof(double));
+        // Block of rows from A matrix multiplied with block columns from B Matrix
         for (int i = 0; i < m; i++) // Rows
             for (int j = 0; j < m; j++) // Cols
                 {
@@ -123,16 +128,16 @@ int main(int argc, char *argv[])
                     {
                         sum += A_local[i * n + k] * B_local[k * m + j];
                     }
-                    C_local[i * n + (start_col + j)] = sum;
+                    C_local[i * n + (start_col + j)] = sum;  // i*n = select row,   start_col+j = block width
                 }
 
-        // Shift B_local one step
+        // Shift B_local one step (to the left)
         double *B_temp = (double *)malloc(n * m * sizeof(double));
-        int from = (rank - 1 + size) % size; // recieve from previous
-        int to = (rank + 1) % size; // Send to next
-        MPI_Sendrecv(B_local, m * n, MPI_DOUBLE, from, 1, B_temp, m * n, MPI_DOUBLE, to, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        int dest = (rank - 1 + size) % size; // send to previous
+        int source = (rank + 1) % size; // recieve from next
+        MPI_Sendrecv(B_local, m * n, MPI_DOUBLE, dest, 1, B_temp, m * n, MPI_DOUBLE, source, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        // Overwrite old B_local with temp and free memory
+        // Overwrite old B_local with temp and free memory 
         memcpy(B_local, B_temp, m * n * sizeof(double));
         free(B_temp);
     }
