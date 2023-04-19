@@ -99,8 +99,14 @@ int main(int argc, char *argv[])
 
         // Send data to other processes
         for (int i = 1; i < size; i++) // Other processes
-            for (int j = 0; j < n; j++) // Element index
-                MPI_Send(&B[j * n + i * m], m, MPI_DOUBLE, i, j, MPI_COMM_WORLD);
+            for (int j = 0; j < n; j++) // Iterate over rows
+                {
+                    // j*n = row index,
+                    // i*m = where column block start on that row
+                    // send m elements per MPI_send (column thickness)
+                    MPI_Send(&B[j * n + i * m], m, MPI_DOUBLE, i, j, MPI_COMM_WORLD); 
+                } 
+                
     }
     else // Other processes recieves data from 0
         for (int j = 0; j < n; j++)
@@ -114,7 +120,7 @@ int main(int argc, char *argv[])
         int start_col = (m * (rank+stage)) % n;
         
         // Matrix multiplication for current stage
-        double *block = (double *)malloc(m * m * sizeof(double));
+        // Block of rows from A matrix multiplied with block columns from B Matrix
         for (int i = 0; i < m; i++) // Rows
             for (int j = 0; j < m; j++) // Cols
                 {
