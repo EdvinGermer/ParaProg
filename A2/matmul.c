@@ -128,9 +128,9 @@ int main(int argc, char *argv[])
 
         // Shift B_local one step
         double *B_temp = (double *)malloc(n * m * sizeof(double));
-        int prev = (rank - 1 + size) % size; // recieve from previous
-        int next = (rank + 1) % size; // Send to next
-        MPI_Sendrecv(B_local, m * n, MPI_DOUBLE, next, 1, B_temp, m * n, MPI_DOUBLE, prev, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        int from = (rank - 1 + size) % size; // recieve from previous
+        int to = (rank + 1) % size; // Send to next
+        MPI_Sendrecv(B_local, m * n, MPI_DOUBLE, from, 1, B_temp, m * n, MPI_DOUBLE, to, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         // Overwrite old B_local with temp and free memory
         memcpy(B_local, B_temp, m * n * sizeof(double));
