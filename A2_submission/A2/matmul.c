@@ -5,18 +5,6 @@
 #include <mpi.h>
 #include<unistd.h>
 
-void print_matrix(double *matrix, int rows, int cols) {
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-            printf("%.2lf ", matrix[i * cols + j]);
-        }
-        printf("\n");
-    }
-    printf("\n");
-}
-
-// mpirun --bind-to none -n 2 ./matmul ./input4.txt output.txt
-
 int main(int argc, char *argv[])
 {
     /* INITIALIZE PARAMETERS */
