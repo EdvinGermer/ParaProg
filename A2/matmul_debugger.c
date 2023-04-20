@@ -26,6 +26,11 @@ int main(int argc, char *argv[])
     int rank,size,n;
     double *A, *B, *C;
     double *A_local, *B_local, *C_local;
+
+    /* INITIALIZE MPI */
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
     
     /* CHECK ARGUMENT COUNT */
     if (argc != 3)
@@ -34,11 +39,6 @@ int main(int argc, char *argv[])
             printf("Usage: %s <input_file> <output_file>\n", argv[0]);
         return -1;
     }
-
-    /* INITIALIZE MPI */
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     /* READ DATA TO RANK 0 */
     if (rank == 0)
