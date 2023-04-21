@@ -1,0 +1,13 @@
+Extracting and entering A2 directory
+Building
+rm -f matmul
+mpicc -g -O3 -o matmul matmul.c -lm
+OK
+Checking result of serial runs
+OK
+Checking format of output written to screen
+OK
+Checking result of parallel runs
+OK
+rm -f matmul
+Your file is ready for submission. Well done!
