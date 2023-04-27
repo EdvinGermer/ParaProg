@@ -5,25 +5,34 @@
 #include <mpi.h>
 #include<unistd.h>
 
-// Normal Sequential Quicksort
-void quicksort(int *a, int n) {
-  int i, j, p, t;
-  if (n < 2)
-    return;
-  p = a[n / 2];
-  for (i = 0, j = n - 1;; i++, j--) {
-    while (a[i] < p)
-      i++;
-    while (p < a[j])
-      j--;
-    if (i >= j)
-      break;
-    t = a[i];
-    a[i] = a[j];
-    a[j] = t;
-  }
-  quicksort(a, i);
-  quicksort(a + i, n - i);
+/* Local quicksort function from the internet */ 
+void quicksort(int *list, int n) 
+{
+    // Initialize
+    int i, j, pivot, temp;
+
+    // Base case
+    if (n < 2)
+        return;
+
+    // Else
+    pivot = list[n / 2]; 
+
+    for (i = 0, j = n - 1;; i++, j--)
+    {
+        while (list[i] < pivot)
+            i++;
+        while (pivot < list[j])
+            j--;
+        if (i >= j)
+            break;
+
+        temp = list[i];
+        list[i] = list[j];
+        list[j] = temp;
+    }
+    quicksort(list, i);
+    quicksort(list + i, n - i);
 }
 
 // print list function
@@ -40,7 +49,7 @@ void print_list(int* list, int n)
 int main(int argc, char *argv[])
 {
     /* INITIALIZE PARAMETERS */
-    int rank,p;
+    int rank,pivot;
     int n;
 
     int* big_list;
@@ -49,7 +58,7 @@ int main(int argc, char *argv[])
     /* INITIALIZE MPI */
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &p);
+    MPI_Comm_size(MPI_COMM_WORLD, &pivot);
 
      /* CHECK ARGUMENT COUNT */
     if (rank==0)
@@ -101,7 +110,7 @@ int main(int argc, char *argv[])
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     // Determine local_list size
-    int m = n/p;
+    int m = n/pivot;
 
     // Allocate memory
     local_list = (int *)malloc(m* sizeof(int));
@@ -114,7 +123,7 @@ int main(int argc, char *argv[])
     print_list(local_list,m);
  
 
- 
+
 
     /* SORT LOCALLY */
     quicksort(local_list,m);
