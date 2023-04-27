@@ -1,0 +1,3 @@
+ls /proj/uppmax2023-2-13/nobackup/qsort_indata/
+
+module load gcc openmpi
