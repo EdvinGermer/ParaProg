@@ -6,7 +6,7 @@ CC = mpicc
 CCFLAGS = -g -O3
 LIBS = -lm
 
-BINS = quicksort
+BINS = quicksort quicksort_copy
 
 all: $(BINS)
 
