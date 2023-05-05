@@ -35,9 +35,15 @@ void quicksort(int *list, int n)
     quicksort(list + i, n - i);
 }
 
-void par_quicksort(int *array, int size, int my_rank, int p, int pivot_stategy, MPI_Comm comm);
+void par_quicksort(int *array, int n, int pivot_strategy, MPI_Comm comm)
 {
+    printf("Started par_quicksort\n");
+
     int pivot;
+    int rank;
+    int size;
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &size);
 
     // Oklart om det här behövs
     if (size < 2)
@@ -46,49 +52,58 @@ void par_quicksort(int *array, int size, int my_rank, int p, int pivot_stategy, 
     // 3.1 Select Pivot element ()
     if (pivot_strategy == 1) // Median of processor 0 
     {
-        if (my_rank == 0)
+        if (rank == 0)
         {
             // Select the median
-            pivot = array[size/2];
+            pivot = array[n/2];
 
-            
-           
         }
     } else if (pivot_strategy == 2) // Median of medians
     {
-        pivot = array[size/2];
+        pivot = array[n/2];
         MPI_Gather(&pivot, 1, MPI_INT, &pivot, 1, MPI_INT, 0, comm); // Gather all pivots to processor 0
 
-        if (my_rank == 0)
+        if (rank == 0)
         {
             // Select the median
-            pivot = array[size/2];
+            pivot = array[n/2];
         }
 
 
     } else // Mean of medians
     {
-        pivot = array[size/2];
-        MPI_Gather(&pivot, 1, MPI_INT, &pivot, 1, MPI_INT, 0, comm); // Gather all pivots to processor 0
+        pivot = array[n/2];
+        int* pivots;
+
+        if (rank == 0)
+        {
+            // Allocate memory for all pivots
+            pivots = (int*)malloc(size * sizeof(int));
+        }
+
+        MPI_Gather(&pivot, 1, MPI_INT, &pivots, size, MPI_INT, 0, comm); // Gather all pivots to processor 0
         
-        if (my_rank == 0)
+        if (rank == 0)
         {
             // Mean of all medians 
             int sum = 0;
-            for (int i = 0; i < p; i++)
-                sum += pivot[i];
-            pivot = sum/p;
+            for (int i = 0; i < size; i++)
+                sum += pivots[i];
+            pivot = sum/size;
         }
 
 
     }
 
+    printf("After pivot selection\n");
+    printf("Pivot: %d\n", pivot);
+
     // Broadcast pivot to all other processors in group
     MPI_Bcast(&pivot, 1, MPI_INT, 0, comm);
 
     // 3.2 Split the array into two subarrays and send to other processor 
-    int* smaller = (int*)malloc(size * sizeof(int));
-    int* larger = (int*)malloc(size * sizeof(int));
+    int* smaller = (int*)malloc(n * sizeof(int));
+    int* larger = (int*)malloc(n * sizeof(int));
     int smaller_size = 0;
     int larger_size = 0;
 
@@ -105,15 +120,27 @@ void par_quicksort(int *array, int size, int my_rank, int p, int pivot_stategy, 
         }
     }
 
+    printf("After split\n");
+    printf("Now sending to other processor\n");
+
     if (rank > size / 2) // Send larger to other processor, 1-8, 2-7, 3-6, 4-5
     {
-        MPI_Send(larger, larger_size, MPI_INT, rank - size/2, 0, comm);
-        MPI_Recv(smaller, smaller_size, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE);
+        // Send size of small and then the array
+        MPI_ISend(smaller_size, 1, MPI_INT, rank - size/2, 0, comm)
+        MPI_ISend(smaller, smaller_size, MPI_INT, rank - size/2, 0, comm);
+
+        // Receive size of large and then the array
+        MPI_IRecv(larger_size, 1, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE);
+        MPI_IRecv(larger, smaller_size, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE);
     } else // Send smaller to other processor, 1-2, 2-3, 3-4, 4-5
     {
-        MPI_Send(smaller, smaller_size, MPI_INT, rank + size/2, 0, comm);
-        MPI_Recv(larger, larger_size, MPI_INT, rank + size/2, 0, comm, MPI_STATUS_IGNORE);
+        MPI_ISend(larger, larger_size, MPI_INT, rank + size/2, 0, comm);
+        MPI_IRecv(smaller, smaller_size, MPI_INT, rank + size/2, 0, comm, MPI_STATUS_IGNORE);
+        
     }
+
+    printf("After send and receive\n");
+    printf("Splitting into two groups\n");
 
     // Split into two MPI groups
     MPI_Comm smaller_comm;
@@ -122,13 +149,12 @@ void par_quicksort(int *array, int size, int my_rank, int p, int pivot_stategy, 
     MPI_Comm_split(comm, rank >= size/2, rank, &larger_comm);
 
     // 3.3 Recursively call par_quicksort on the two subarrays
-    par_quicksort(smaller, smaller_size, my_rank, p, pivot_stategy, smaller_comm);
-    par_quicksort(larger, larger_size, my_rank, p, pivot_stategy, larger_comm);
+    par_quicksort(smaller, smaller_size, pivot_strategy, smaller_comm);
+    par_quicksort(larger,  larger_size, pivot_strategy, larger_comm);
 
     // Oklart hur man slår ihop listorna?? 
     // Gör det här? MPI Gather? If rank==0??
     
-
 }
 
 // print list function
@@ -226,6 +252,14 @@ int main(int argc, char *argv[])
 
     // Print local_list
     printf("RANK %d sorted: ", rank);
+    print_list(local_list,m);
+
+    // Do parallel quicksort 
+    printf("Starting parallel sort: \n");
+    par_quicksort(local_list, m, 1, MPI_COMM_WORLD);
+
+    // Print local_list
+    printf("RANK %d parallel sorted: ", rank);
     print_list(local_list,m);
 
 
