@@ -55,8 +55,14 @@ void par_quicksort(int *array, int n, int pivot_strategy, MPI_Comm comm)
         if (rank == 0)
         {
             // Select the median
-            pivot = array[n/2];
-
+            if(n%2==0)
+            {
+                pivot = (array[n/2]+array[(n/2)+1])/2; // mean
+            }
+            else
+            {
+                pivot = array[n/2]
+            }
         }
     } else if (pivot_strategy == 2) // Median of medians
     {
@@ -91,8 +97,6 @@ void par_quicksort(int *array, int n, int pivot_strategy, MPI_Comm comm)
                 sum += pivots[i];
             pivot = sum/size;
         }
-
-
     }
 
     printf("After pivot selection\n");
