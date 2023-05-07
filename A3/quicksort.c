@@ -231,16 +231,14 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 
     }
 
+    printf("After merged list on processor %d: ", rank);
+    print_list(array, length);
+
     // free temp and temp_keep
     free(temp);
     free(temp_keep);
     
-
-
-
-
-    // Local Sort
-    //insertion_sort(array, length);
+ 
 
     // Split into groups
     MPI_Comm new_comm;
@@ -252,8 +250,8 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 
     // Finalize and free
     MPI_Comm_free(&new_comm);
-    if (recv_count!=0)
-        free(temp);
+    // if (recv_count!=0)
+        // free(temp);
     return final_length;
 }
 
