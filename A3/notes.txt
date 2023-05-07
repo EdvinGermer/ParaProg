@@ -1,3 +1,19 @@
 ls /proj/uppmax2023-2-13/nobackup/qsort_indata/
 
 module load gcc openmpi
+
+
+/* GET INDIVIDUAL LENGTHS */
+    /* int* lengths = NULL;
+    if (rank == 0)
+        lengths = (int*) malloc(size * sizeof(int));
+    MPI_Gather(&final_length, 1, MPI_INT, lengths, 1, MPI_INT, 0, MPI_COMM_WORLD);
+ */
+
+    /* SAVE LIST TO OUTPUT FILE */
+    /* if (rank == 0) {
+        FILE* output = fopen(argv[2], "w");
+        for (int i = 0; i < n; i++)
+            fprintf(output, "%d\n", big_list[i]);
+            fclose(output);
+    } */
