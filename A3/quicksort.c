@@ -231,7 +231,6 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 
     }
 
-    print_list(array, length);
 
     // free temp and temp_keep
     free(temp);
