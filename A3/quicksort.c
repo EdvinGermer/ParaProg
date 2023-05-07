@@ -28,6 +28,47 @@ void insertion_sort(int *list, int n)
     }
 }
 
+// Merge two sorted arrays REWRITE THIS!! COPYPASTED FROM THE INTERNET
+void merge(int *arr1, int *arr2, int n1, int n2, int *arr3)
+{
+    int i = 0, j = 0, k = 0;
+    // Traverse both array
+    while (i < n1 && j < n2)
+    {
+        // Check if current element of first
+        // array is smaller than current element
+        // of second array. 
+        if (arr1[i] < arr2[j]) // if yes, store first array element and increment first array index
+        {
+            arr3[k] = arr1[i];
+            k++;
+            i++;
+        }
+        else
+        {
+            arr3[k] = arr2[j]; // else store second array element and increment second array index
+            k++;
+            j++;
+        }
+    }
+
+    // Store remaining elements of first array
+    while (i < n1)
+    {
+        arr3[k] = arr1[i];
+        k++;
+        i++;
+    }
+
+    // Store remaining elements of second array
+    while (j < n2)
+    {
+        arr3[k] = arr2[j];
+        k++;
+        j++;
+    }
+}
+
 // print list function
 void print_list(int* list, int n)
 {
@@ -152,32 +193,54 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 
     // Send list elements
     int* temp = (int*)malloc(recv_count * sizeof(int));
+    int* temp_keep; // part of array we are keeping (smaller or larger elements)
+
     if (rank >= size / 2) // Send smaller to the left:  0-2, 1-3
     {
         MPI_Ssend(array, smaller_count, MPI_INT, rank - size/2, 0, comm); 
         MPI_Recv(temp, recv_count, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE); 
-        memcpy(&array[0],&array[smaller_count], larger_count * sizeof(int)); // move elements to start
-        length = larger_count + recv_count;
+        temp_keep = (int*)malloc(larger_count * sizeof(int));
+        memcpy(temp_keep,&array[smaller_count], larger_count * sizeof(int)); // copy elements to keep
+
+        // realloc for array
+         length = recv_count + larger_count;
         if (length!=0)
-            {
-                array = (int*)realloc(array, (length) * sizeof(int));
-                memcpy(&array[larger_count],temp, recv_count * sizeof(int)); // append temp to end
-            }
+        {
+            array = (int*)realloc(array, (length) * sizeof(int));
+        }
+        // merge temp and temp_keep into array
+        merge(temp_keep, temp, larger_count, recv_count, array);
+  
     } 
     else // Send larger to the right:   
     {
         MPI_Recv(temp, recv_count, MPI_INT, rank + size/2, 0, comm, MPI_STATUS_IGNORE);
         MPI_Ssend(&array[smaller_count], larger_count, MPI_INT, rank + size/2, 0, comm);
-        length = smaller_count + recv_count;
+
+        temp_keep = (int*)malloc(smaller_count * sizeof(int));
+        memcpy(temp_keep, array, smaller_count * sizeof(int)); // copy elements to keep
+
+        // realloc for array
+        length = recv_count + smaller_count;
         if (length!=0)
-            {
-                array = (int*)realloc(array, (length) * sizeof(int)); // realloc at end of array
-                memcpy(&array[smaller_count],temp, recv_count * sizeof(int)); // append temp to end
-            }
+        {
+            array = (int*)realloc(array, (length) * sizeof(int));
+        }
+        // merge temp and temp_keep into array
+        merge(temp_keep, temp, smaller_count, recv_count, array);
+
     }
 
+    // free temp and temp_keep
+    free(temp);
+    free(temp_keep);
+    
+
+
+
+
     // Local Sort
-    insertion_sort(array, length);
+    //insertion_sort(array, length);
 
     // Split into groups
     MPI_Comm new_comm;
