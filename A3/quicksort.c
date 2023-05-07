@@ -43,8 +43,158 @@ void print_list(int* list, int n)
     printf("\n\n");
 }
 
+int select_pivot(int *array, int n, int pivot_strategy, MPI_Comm comm)
+{
+    int size,rank,pivot;
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &size);
+    
+    if (pivot_strategy == 1) // Median of processor 0 
+    {
+        if (rank == 0)
+        {
+            // Select the median
+            if(n%2==0)
+            {
+                pivot = (array[(n-1)/2]+array[(n/2)])/2; // mean
+            }
+            else
+            {
+                pivot = array[n/2];
+            }
+        }
+    } else if (pivot_strategy == 2) // Median of medians
+    {
+        pivot = array[n/2];
+        MPI_Gather(&pivot, 1, MPI_INT, &pivot, 1, MPI_INT, 0, comm); // Gather all pivots to processor 0
 
-// mpirun --bind-to none -n 2 ./quicksort ./input4.txt output.txt
+        if (rank == 0)
+        {
+            // Select the median
+            pivot = array[n/2];
+        }
+
+    } else // Mean of medians
+    {
+        pivot = array[n/2];
+        int* pivots;
+
+        if (rank == 0)
+        {
+            // Allocate memory for all pivots
+            pivots = (int*)malloc(size * sizeof(int));
+        }
+
+        MPI_Gather(&pivot, 1, MPI_INT, &pivots, size, MPI_INT, 0, comm); // Gather all pivots to processor 0
+        
+        if (rank == 0)
+        {
+            // Mean of all medians 
+            int sum = 0;
+            for (int i = 0; i < size; i++)
+                sum += pivots[i];
+            pivot = sum/size;
+        }
+    }
+
+    // Broadcast pivot to all other processors in group
+    MPI_Bcast(&pivot, 1, MPI_INT, 0, comm);
+    //printf("Rank %d, Pivot: %d\n",rank, pivot);
+
+    return pivot;
+} 
+
+void par_quicksort(int *array, int n, int pivot_strategy, MPI_Comm comm)
+{
+    int pivot;
+    int rank;
+    int size;
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &size);
+
+    if (rank==0)
+        printf("Started par_quicksort\n");
+
+    // Base case
+    if (size < 2)
+        return length;
+
+    // 3.1 Select Pivot element
+    pivot = select_pivot(array, n, pivot_strategy, comm);
+
+    /// 3.2 Split the array into two subarrays and send to other processor 
+    int smaller_count = 0;
+    for (int i = 0; i < n; i++)
+        if (array[i] <= pivot)
+            smaller_count++;
+
+    int larger_count = n-smaller_count;
+
+    if (rank==0)
+    {
+        printf("After split\n");
+        printf("Now sending to other processor\n");
+    }
+
+    // Exchange send_count
+    int recv_count = 0;
+    if (rank >= size / 2) // Send smaller to the left:  0-2, 1-3
+    {
+        MPI_Send(&smaller_count, 1, MPI_INT, rank - size/2, 0, comm); // Send nr of smaller elements
+        MPI_Recv(&recv_count, 1, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE); // Receive recv_count
+        //printf("Rank %d with pair %d: recieved %d and sent %d\n",rank,rank - size/2,recv_count,smaller_count);
+    } 
+    else // Send larger to the right:   
+    {
+        MPI_Recv(&recv_count, 1, MPI_INT, rank + size/2, 0, comm, MPI_STATUS_IGNORE);
+        MPI_Send(&larger_count, 1, MPI_INT, rank + size/2, 0, comm);
+        //printf("Rank %d with pair %d: recieved %d and sent %d\n",rank,rank + size/2,recv_count,larger_count);
+    }
+
+    // Send list elements
+    int* temp = (int*)malloc(recv_count * sizeof(int));
+    int length;
+    if (rank >= size / 2) // Send smaller to the left:  0-2, 1-3
+    {
+        MPI_Send(array, smaller_count, MPI_INT, rank - size/2, 0, comm); 
+        MPI_Recv(temp, recv_count, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE); 
+        memcpy(&array[0],&array[smaller_count], larger_count * sizeof(int)); // move elements to start
+        length = larger_count + recv_count;
+        array = (int*)realloc(array, (length) * sizeof(int));
+        memcpy(&array[larger_count],temp, recv_count * sizeof(int)); // append temp to end
+        //printf("Rank %d:\n",rank);
+        //print_list(array,larger_count + recv_count);
+    } 
+    else // Send larger to the right:   
+    {
+        MPI_Recv(temp, recv_count, MPI_INT, rank + size/2, 0, comm, MPI_STATUS_IGNORE);
+        MPI_Send(&array[smaller_count], larger_count, MPI_INT, rank + size/2, 0, comm);
+        length = smaller_count + recv_count;
+        array = (int*)realloc(array, (length) * sizeof(int)); // realloc at end of array
+        memcpy(&array[smaller_count],temp, recv_count * sizeof(int)); // append temp to end
+        //printf("Rank %d:\n",rank);
+        //print_list(array,smaller_count + recv_count);
+    }
+
+    // Local Sort
+    quicksort(array, length);
+   // printf("Rank %d:\n",rank);
+    //print_list(array,length);
+
+    // Split into groups
+    MPI_Comm new_comm;
+    MPI_Comm_split(comm, rank < size/2, rank, &new_comm);
+
+    // Recursive quicksort call
+    int final_length = par_quicksort(array, length, pivot_strategy, MPI_COMM_WORLD);
+
+    // Finalize
+    MPI_Comm_free(&new_comm);
+    return final_length;
+}
+
+
+// mpirun --bind-to none -n 4 ./quicksort ./input16.txt output.txt
 
 int main(int argc, char *argv[])
 {
@@ -97,8 +247,8 @@ int main(int argc, char *argv[])
         }
 
         // Print big_list
-        printf("BIG LIST\n");
-        print_list(big_list,n);
+        //printf("BIG LIST\n");
+        //print_list(big_list,n);
 
         // Close the input file
         fclose(input);
@@ -119,18 +269,33 @@ int main(int argc, char *argv[])
     MPI_Scatter(big_list, m, MPI_INT, local_list, m, MPI_INT, 0, MPI_COMM_WORLD);
 
     // Print local_list
-    printf("RANK %d: ", rank);
-    print_list(local_list,m);
- 
-
-
+    //printf("RANK %d: ", rank);
+    //print_list(local_list,m);
 
     /* SORT LOCALLY */
     quicksort(local_list,m);
-
     // Print local_list
-    printf("RANK %d sorted: ", rank);
-    print_list(local_list,m);
+    //printf("RANK %d sorted: ", rank);
+    //print_list(local_list,m);
+
+    /* CALL QUICKSORT */
+    int pivot_strategy = 1;
+    int final_length = par_quicksort(local_list, m, pivot_strategy, MPI_COMM_WORLD);
+
+    /* GET INDIVIDUAL LENGTHS */
+    int* lengths = NULL;
+    if (rank == 0)
+        lengths = (int*) malloc(size * sizeof(int));
+    MPI_Gather(&final_length, 1, MPI_INT, lengths, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+
+    /* SAVE LIST TO OUTPUT FILE */
+    if (rank == 0) {
+        FILE* output = fopen(argv[2], "w");
+        for (int i = 0; i < n; i++)
+            fprintf(output, "%d\n", big_list[i]);
+            fclose(output);
+    }
 
    
 
