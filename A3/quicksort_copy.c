@@ -130,16 +130,16 @@ void par_quicksort(int *array, int n, int pivot_strategy, MPI_Comm comm)
     if (rank > size / 2) // Send larger to other processor, 1-8, 2-7, 3-6, 4-5
     {
         // Send size of small and then the array
-        MPI_ISend(smaller_size, 1, MPI_INT, rank - size/2, 0, comm)
-        MPI_ISend(smaller, smaller_size, MPI_INT, rank - size/2, 0, comm);
+        MPI_Isend(smaller_size, 1, MPI_INT, rank - size/2, 0, comm);
+        MPI_Isend(smaller, smaller_size, MPI_INT, rank - size/2, 0, comm);
 
         // Receive size of large and then the array
-        MPI_IRecv(larger_size, 1, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE);
-        MPI_IRecv(larger, smaller_size, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE);
+        MPI_Irecv(larger_size, 1, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE);
+        MPI_Irecv(larger, smaller_size, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE);
     } else // Send smaller to other processor, 1-2, 2-3, 3-4, 4-5
     {
-        MPI_ISend(larger, larger_size, MPI_INT, rank + size/2, 0, comm);
-        MPI_IRecv(smaller, smaller_size, MPI_INT, rank + size/2, 0, comm, MPI_STATUS_IGNORE);
+        MPI_Isend(larger_size, 1, MPI_INT, rank + size/2, 0, comm);
+        MPI_Irecv(smaller, smaller_size, MPI_INT, rank + size/2, 0, comm, MPI_STATUS_IGNORE);
         
     }
 
