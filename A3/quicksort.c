@@ -35,7 +35,6 @@ void quicksort(int *list, int n)
     quicksort(list + i, n - i);
 }
 
-
 // Merge lists function from internet
 void merge(int* arr1, int* arr2, int arr1_size, int arr2_size, int* result) {
     int i = 0, j = 0, k = 0;
@@ -46,16 +45,13 @@ void merge(int* arr1, int* arr2, int arr1_size, int arr2_size, int* result) {
             result[k++] = arr2[j++];
         }
     }
-
     // Copy the remaining elements of arr1, if any
-    while (i < arr1_size) {
+    while (i < arr1_size)
         result[k++] = arr1[i++];
-    }
 
     // Copy the remaining elements of arr2, if any
-    while (j < arr2_size) {
+    while (j < arr2_size)
         result[k++] = arr2[j++];
-    }
 }
 
 // print list function
@@ -160,7 +156,7 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
     // 3.1 Select Pivot element
     pivot = select_pivot(array, n, pivot_strategy, comm);
 
-    /// 3.2 Split the array into two subarrays and send to other processor 
+    // 3.2 Split the array into two subarrays and send to other processor 
     int smaller_count = 0;
     for (int i = 0; i < n; i++)
         if (array[i] <= pivot)
@@ -218,7 +214,6 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
         }
         // merge temp and temp_keep into array
         merge(temp_keep, temp, smaller_count, recv_count, array);
-
     }
 
     // free temp and temp_keep
@@ -293,6 +288,9 @@ int main(int argc, char *argv[])
         fclose(input);
     }
 
+    /* WAIT FOR DATA TO BE LOADED */
+    MPI_Barrier(MPI_COMM_WORLD);
+
     /* DISTRIBUTE DATA */
     double start = MPI_Wtime(); // Record the start time
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD); // Broadcast the value of n to all processes
@@ -300,19 +298,21 @@ int main(int argc, char *argv[])
     // Determine local_list size
     int m = n / size;
     int remainder = n % size;
-    if (rank < remainder)
-        m =  m + 1;
+    if (rank < remainder)  // first ranks get remainder
+        m = m + 1;
         
-    int* send_counts = (int*)malloc(size * sizeof(int));
-    int* displs = (int*)malloc(size * sizeof(int));
+    int* send_counts, *displs; 
     if (rank == 0)
     {
+        send_counts = (int*)malloc(size * sizeof(int)); // how many to send to each rank
+        displs = (int*)malloc(size * sizeof(int));      // index where to start
+        
         for (int i = 0; i < size; i++)
         {
             if (i < remainder)
-                send_counts[i] = n / size + 1;
+                send_counts[i] = n/size+1;
             else
-                send_counts[i] = n / size;
+                send_counts[i] = n/size;
 
             if (i > 0)
                 displs[i] = displs[i - 1] + send_counts[i - 1];
@@ -360,18 +360,16 @@ int main(int argc, char *argv[])
     else // Send local_list to rank 0
         MPI_Send(local_list, final_length, MPI_INT, 0, 0, MPI_COMM_WORLD);
 
-
     /* LOCAL TIME */
 	double local_execution_time = MPI_Wtime() - start;
     
     /* SAVE LIST TO OUTPUT FILE */
-    /* if (rank == 0) {
+    if (rank == 0) {
         FILE* output = fopen(argv[2], "w");
         for (int i = 0; i < n; i++)
             fprintf(output, "%d ", big_list[i]);
             fclose(output);
-    } */
-
+    }
 
     /* FIND LONGEST TIME */
 	double timings[size];
@@ -393,7 +391,8 @@ int main(int argc, char *argv[])
     if (rank==0)
     {
         free(big_list);
-        free(lengths);   
+        free(lengths); 
+        free(send_counts);
         free(displs);
     }
     if (final_length!=0)
