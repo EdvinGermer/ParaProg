@@ -97,7 +97,7 @@ int select_pivot(int *array, int n, int pivot_strategy, MPI_Comm comm)
     return pivot;
 } 
 
-int par_quicksort(int *array, int n, int pivot_strategy, MPI_Comm comm)
+int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 {
     int pivot;
     int rank;
@@ -109,6 +109,9 @@ int par_quicksort(int *array, int n, int pivot_strategy, MPI_Comm comm)
     // Base case
     if (size < 2)
         return n;
+
+    // Access list
+    int *array = *array_ptr;
 
     //if (rank==0)
         //printf("------- GROUPING -------\n");
@@ -186,7 +189,8 @@ int par_quicksort(int *array, int n, int pivot_strategy, MPI_Comm comm)
     MPI_Comm_split(comm, rank < size/2, rank, &new_comm);
 
     // Recursive quicksort call
-    int final_length = par_quicksort(array, length, pivot_strategy, new_comm);
+    *array_ptr = array;
+    int final_length = par_quicksort(array_ptr, length, pivot_strategy, new_comm);
 
     // Finalize and free
     MPI_Comm_free(&new_comm);
@@ -270,18 +274,28 @@ int main(int argc, char *argv[])
     MPI_Scatter(big_list, m, MPI_INT, local_list, m, MPI_INT, 0, MPI_COMM_WORLD);
 
     // Print local_list before sort
-    //printf("RANK %d: ", rank);
-    //print_list(local_list,m);
+    /* printf("RANK %d: ", rank);
+    print_list(local_list,m); */
+
+
+
 
     /* SORT LOCALLY */
     quicksort(local_list,m);
+
     // Print local_list after local sort
-    //printf("RANK %d sorted: ", rank);
-    //print_list(local_list,m);
+    /* printf("RANK %d sorted: ", rank);
+    print_list(local_list,m); */
+
+
+
+
 
     /* CALL PARALLEL QUICKSORT */
     int pivot_strategy = 1;
-    int final_length = par_quicksort(local_list, m, pivot_strategy, MPI_COMM_WORLD);
+    int final_length = par_quicksort(&local_list, m, pivot_strategy, MPI_COMM_WORLD);
+
+
 
 
     /* GATHER ALL FINAL LENGTHS */
@@ -293,8 +307,11 @@ int main(int argc, char *argv[])
     //print_list(local_list,final_length);
     
 
+    /* PRINT LOCAL LISTS */
     printf("_________________________________\nRANK %d: SORTED LOCAL_LIST:\n",rank);
     print_list(local_list, final_length);
+
+
 
     /* GATHER SORTED LOCAL ARRAYS */
     int *displs;
