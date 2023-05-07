@@ -7,5 +7,6 @@ ls /proj/uppmax2023-2-13/nobackup/qsort_indata/input125000000.txt
 module load gcc openmpi
 
 squeue -u edge98 -M snowy
-
 squeue -u edge98 -M snowy -o "%.18i %.9P %.8j %.8u %.2t %.10M %.6D %R"
+
+scancel -i -u edge98

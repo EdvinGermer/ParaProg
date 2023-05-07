@@ -8,5 +8,5 @@
 module load gcc openmpi
 
 echo "16 processes"
-mpirun --bind-to none -n 16 ./quicksort /proj/uppmax2023-2-13/nobackup/qsort_indata/input4.txt output.txt 1
+mpirun --bind-to none -n 16 ./quicksort /proj/uppmax2023-2-13/nobackup/qsort_indata/input125000000.txt output.txt 1
 echo

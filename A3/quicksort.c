@@ -5,29 +5,6 @@
 #include <mpi.h>
 #include<unistd.h>
 
-
-// Local insertion sort from the internet
-void insertion_sort(int *list, int n) 
-{
-    // Initialize
-    int i, j, key;
-
-    // Iterate through the list
-    for (i = 1; i < n; i++) 
-    {
-        key = list[i];
-        j = i - 1;
-
-        // Move elements of list[0..i-1], that are greater than key, to one position ahead of their current position
-        while (j >= 0 && list[j] > key) 
-        {
-            list[j + 1] = list[j];
-            j = j - 1;
-        }
-        list[j + 1] = key;
-    }
-}
-
 /* Local quicksort function from the internet */ 
 void quicksort(int *list, int n) 
 {
@@ -59,45 +36,25 @@ void quicksort(int *list, int n)
 }
 
 
-
-// Merge two sorted arrays REWRITE THIS!! COPYPASTED FROM THE INTERNET
-void merge(int *arr1, int *arr2, int n1, int n2, int *arr3)
-{
+// Merge lists function from internet
+void merge(int* arr1, int* arr2, int arr1_size, int arr2_size, int* result) {
     int i = 0, j = 0, k = 0;
-    // Traverse both array
-    while (i < n1 && j < n2)
-    {
-        // Check if current element of first
-        // array is smaller than current element
-        // of second array. 
-        if (arr1[i] < arr2[j]) // if yes, store first array element and increment first array index
-        {
-            arr3[k] = arr1[i];
-            k++;
-            i++;
-        }
-        else
-        {
-            arr3[k] = arr2[j]; // else store second array element and increment second array index
-            k++;
-            j++;
+    while (i < arr1_size && j < arr2_size) {
+        if (arr1[i] < arr2[j]) {
+            result[k++] = arr1[i++];
+        } else {
+            result[k++] = arr2[j++];
         }
     }
 
-    // Store remaining elements of first array
-    while (i < n1)
-    {
-        arr3[k] = arr1[i];
-        k++;
-        i++;
+    // Copy the remaining elements of arr1, if any
+    while (i < arr1_size) {
+        result[k++] = arr1[i++];
     }
 
-    // Store remaining elements of second array
-    while (j < n2)
-    {
-        arr3[k] = arr2[j];
-        k++;
-        j++;
+    // Copy the remaining elements of arr2, if any
+    while (j < arr2_size) {
+        result[k++] = arr2[j++];
     }
 }
 
@@ -149,7 +106,7 @@ int select_pivot(int *array, int n, int pivot_strategy, MPI_Comm comm)
         // sort pivots and find median of medians
         if (rank == 0)
         {
-            insertion_sort(pivots,size);
+            quicksort(pivots,size);
             pivot = find_median(pivots, size);
         }
     } 
@@ -186,6 +143,7 @@ int select_pivot(int *array, int n, int pivot_strategy, MPI_Comm comm)
     return pivot;
 } 
 
+// Inner loop of parallel quicksort algorithm
 int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 {
     int pivot,rank,size,length;
@@ -263,13 +221,10 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 
     }
 
-
     // free temp and temp_keep
     free(temp_keep);
     if (recv_count!=0)
         free(temp);
-    
- 
 
     // Split into groups
     MPI_Comm new_comm;
@@ -281,8 +236,6 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 
     // Finalize and free
     MPI_Comm_free(&new_comm);
-    // if (recv_count!=0)
-        // free(temp);
     return final_length;
 }
 
@@ -340,7 +293,6 @@ int main(int argc, char *argv[])
         fclose(input);
     }
 
-
     /* DISTRIBUTE DATA */
     double start = MPI_Wtime(); // Record the start time
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD); // Broadcast the value of n to all processes
@@ -375,9 +327,7 @@ int main(int argc, char *argv[])
     // Scatter data
     MPI_Scatterv(big_list, send_counts, displs, MPI_INT, local_list, m, MPI_INT, 0, MPI_COMM_WORLD);
 
-
     /* SORT LOCALLY */
-    // insertion_sort(local_list,m);
     quicksort(local_list, m);
 
     /* CALL PARALLEL QUICKSORT */
