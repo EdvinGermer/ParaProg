@@ -28,6 +28,38 @@ void insertion_sort(int *list, int n)
     }
 }
 
+/* Local quicksort function from the internet */ 
+void quicksort(int *list, int n) 
+{
+    // Initialize
+    int i, j, pivot, temp;
+
+    // Base case
+    if (n < 2)
+        return;
+
+    // Else
+    pivot = list[n / 2]; 
+
+    for (i = 0, j = n - 1;; i++, j--)
+    {
+        while (list[i] < pivot)
+            i++;
+        while (pivot < list[j])
+            j--;
+        if (i >= j)
+            break;
+
+        temp = list[i];
+        list[i] = list[j];
+        list[j] = temp;
+    }
+    quicksort(list, i);
+    quicksort(list + i, n - i);
+}
+
+
+
 // Merge two sorted arrays REWRITE THIS!! COPYPASTED FROM THE INTERNET
 void merge(int *arr1, int *arr2, int n1, int n2, int *arr3)
 {
@@ -345,7 +377,8 @@ int main(int argc, char *argv[])
 
 
     /* SORT LOCALLY */
-    insertion_sort(local_list,m);
+    // insertion_sort(local_list,m);
+    quicksort(local_list, m);
 
     /* CALL PARALLEL QUICKSORT */
     int final_length = par_quicksort(&local_list, m, pivot_strategy, MPI_COMM_WORLD);
