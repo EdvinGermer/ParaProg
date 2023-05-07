@@ -145,41 +145,45 @@ int par_quicksort(int *array, int n, int pivot_strategy, MPI_Comm comm)
     int* temp = (int*)malloc(recv_count * sizeof(int));
     if (rank >= size / 2) // Send smaller to the left:  0-2, 1-3
     {
-        MPI_Ssend(array, smaller_count, MPI_INT, rank - size/2, 0, comm); 
+        MPI_Send(array, smaller_count, MPI_INT, rank - size/2, 0, comm); 
         MPI_Recv(temp, recv_count, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE); 
         memcpy(&array[0],&array[smaller_count], larger_count * sizeof(int)); // move elements to start
         length = larger_count + recv_count;
-        if (length!=0)
-            {
-                array = (int*)realloc(array, (length) * sizeof(int));
-                memcpy(&array[larger_count],temp, recv_count * sizeof(int)); // append temp to end
+        if (length != 0)
+        {
+            int temp_array = (int)realloc(array, length*sizeof(int));
+            if (temp_array != NULL) {
+                array = temp_array;
+                memcpy(&array[larger_count], temp, recv_count, sizeof(int)); // append temp to end
+            } else {
+                printf("error\n");
             }
+        }
         //printf("Rank %d:\n",rank);
         //print_list(array,larger_count + recv_count);
     } 
     else // Send larger to the right:   
     {
         MPI_Recv(temp, recv_count, MPI_INT, rank + size/2, 0, comm, MPI_STATUS_IGNORE);
-        MPI_Ssend(&array[smaller_count], larger_count, MPI_INT, rank + size/2, 0, comm);
+        MPI_Send(&array[smaller_count], larger_count, MPI_INT, rank + size/2, 0, comm);
         length = smaller_count + recv_count;
-        if (length!=0)
-            {
-                array = (int*)realloc(array, (length) * sizeof(int)); // realloc at end of array
-                memcpy(&array[smaller_count],temp, recv_count * sizeof(int)); // append temp to end
+        if (length != 0)
+        {
+            int temp_array = (int)realloc(array, length*sizeof(int));
+            if (temp_array != NULL) {
+                array = temp_array;
+                memcpy(&array[smaller_count], temp, recv_count, sizeof(int)); // append temp to end
+            } else {
+                printf("error\n");
             }
-        //printf("Rank %d:\n",rank);
-        //print_list(array,smaller_count + recv_count);
+        }   
     }
-
 
 
     // Local Sort
     quicksort(array, length);
     //printf("Rank %d:\n",rank);
     //print_list(array,length);
-
-    //if (length==0)
-    //    printf("rank %d\n",rank);
 
     // Split into groups
     MPI_Comm new_comm;
@@ -293,8 +297,6 @@ int main(int argc, char *argv[])
     //print_list(local_list,final_length);
     
 
-    printf("_________________________________\nRANK %d: SORTED LOCAL_LIST:\n",rank);
-    print_list(local_list, final_length);
 
     /* GATHER SORTED LOCAL ARRAYS */
     int *displs;
