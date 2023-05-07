@@ -1,19 +1,11 @@
 ls /proj/uppmax2023-2-13/nobackup/qsort_indata/
+ls /proj/uppmax2023-2-13/nobackup/qsort_indata/input125000000.txt
+
+// mpirun --bind-to none -n 4 ./quicksort ./input16.txt output.txt 1
+// mpirun --bind-to none -n 16 ./quicksort /proj/uppmax2023-2-13/nobackup/qsort_indata/input125000000.txt output.txt 1
 
 module load gcc openmpi
 
+squeue -u edge98 -M snowy
 
-/* GET INDIVIDUAL LENGTHS */
-    /* int* lengths = NULL;
-    if (rank == 0)
-        lengths = (int*) malloc(size * sizeof(int));
-    MPI_Gather(&final_length, 1, MPI_INT, lengths, 1, MPI_INT, 0, MPI_COMM_WORLD);
- */
-
-    /* SAVE LIST TO OUTPUT FILE */
-    /* if (rank == 0) {
-        FILE* output = fopen(argv[2], "w");
-        for (int i = 0; i < n; i++)
-            fprintf(output, "%d\n", big_list[i]);
-            fclose(output);
-    } */
+squeue -u edge98 -M snowy -o "%.18i %.9P %.8j %.8u %.2t %.10M %.6D %R"

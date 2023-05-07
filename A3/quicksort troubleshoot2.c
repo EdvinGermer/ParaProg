@@ -128,6 +128,8 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
     
     // 3.1 Select Pivot element
     pivot = select_pivot(array, n, pivot_strategy, comm);
+    if (rank==0)
+        printf("Pivot = %d\n",pivot);
 
     /// 3.2 Split the array into two subarrays and send to other processor 
     int smaller_count = 0;
@@ -250,7 +252,6 @@ int main(int argc, char *argv[])
 
 
     /* DISTRIBUTE DATA */
-    double start = MPI_Wtime(); // Record the start time
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD); // Broadcast the value of n to all processes
 
     // Determine local_list size
@@ -317,9 +318,31 @@ int main(int argc, char *argv[])
     else // Send local_list to rank 0
         MPI_Send(local_list, final_length, MPI_INT, 0, 0, MPI_COMM_WORLD);
 
+    /* PRINT FINAL SORTED LIST*/
+    /* if (rank == 0)
+    {
+        printf("_________________________________\nSORTED BIG LIST:\n");
+        print_list(big_list, n);
+    } */
 
-    /* LOCAL TIME */
-	double local_execution_time = MPI_Wtime() - start;
+    /* CHECK IF SORTED */
+    if (rank==0)
+    {
+        for(int i = 0; i < n; i++)
+        {
+            if (i == 0) {
+                if (big_list[i] > big_list[i+1]) {
+                    printf("Error! List not sorted!, at big_list[%d] num: %d \n", i, big_list[i]);
+                    return -1; }
+            }
+            else {
+                if(big_list[i] < big_list[i-1]) {
+                    printf("Error! List not sorted!, at big_list[%d] num: %d \n", i, big_list[i]);
+                    return -1; }
+            }
+        }
+        printf("OK. List is sorted.\n");
+    }
     
     /* SAVE LIST TO OUTPUT FILE */
     /* if (rank == 0) {
@@ -328,23 +351,6 @@ int main(int argc, char *argv[])
             fprintf(output, "%d ", big_list[i]);
             fclose(output);
     } */
-
-
-    /* FIND LONGEST TIME */
-	double timings[size];
-	MPI_Gather(&local_execution_time, 1, MPI_DOUBLE, timings, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-	if (rank == 0)
-	{
-		double max = 0;
-		for (int i=0; i<size;i++)
-		{
-			double time = timings[i];
-			if (time>max)
-				max = time;
-		}
-		printf("%f\n", max);
-	}
 
     /* FINALIZE AND FREE MEMORY */
     if (rank==0)
