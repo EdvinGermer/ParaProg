@@ -231,7 +231,6 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 
     }
 
-    printf("After merged list on processor %d: ", rank);
     print_list(array, length);
 
     // free temp and temp_keep
