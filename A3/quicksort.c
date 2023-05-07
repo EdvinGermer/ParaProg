@@ -197,7 +197,7 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 
     if (rank >= size / 2) // Send smaller to the left:  0-2, 1-3
     {
-        MPI_Ssend(array, smaller_count, MPI_INT, rank - size/2, 0, comm); 
+        MPI_Send(array, smaller_count, MPI_INT, rank - size/2, 0, comm); 
         MPI_Recv(temp, recv_count, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE); 
         temp_keep = (int*)malloc(larger_count * sizeof(int));
         memcpy(temp_keep,&array[smaller_count], larger_count * sizeof(int)); // copy elements to keep
@@ -215,7 +215,7 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
     else // Send larger to the right:   
     {
         MPI_Recv(temp, recv_count, MPI_INT, rank + size/2, 0, comm, MPI_STATUS_IGNORE);
-        MPI_Ssend(&array[smaller_count], larger_count, MPI_INT, rank + size/2, 0, comm);
+        MPI_Send(&array[smaller_count], larger_count, MPI_INT, rank + size/2, 0, comm);
 
         temp_keep = (int*)malloc(smaller_count * sizeof(int));
         memcpy(temp_keep, array, smaller_count * sizeof(int)); // copy elements to keep
@@ -233,8 +233,9 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 
 
     // free temp and temp_keep
-    free(temp);
     free(temp_keep);
+    if (recv_count!=0)
+        free(temp);
     
  
 
