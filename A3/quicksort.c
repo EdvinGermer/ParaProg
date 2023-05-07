@@ -5,6 +5,18 @@
 #include <mpi.h>
 #include<unistd.h>
 
+/*
+Parallel quicksort using MPI
+Assignment 3 - Parallel and Distributed Computing
+
+By:
+Claude Carlsson
+Edvin Germer
+Ture Hassler
+
+2023-05-07
+*/
+
 /* Local quicksort function from the internet */ 
 void quicksort(int *list, int n) 
 {
@@ -339,10 +351,6 @@ int main(int argc, char *argv[])
         lengths = (int*) malloc(size * sizeof(int));
     MPI_Gather(&final_length, 1, MPI_INT, lengths, 1, MPI_INT, 0, MPI_COMM_WORLD);
     
-    /* PRINT LOCAL LISTS */
-    /* printf("_________________________________\nRANK %d: SORTED LOCAL_LIST:\n",rank);
-    print_list(local_list, final_length); */
-
     /* GATHER SORTED LOCAL ARRAYS */
     if (rank == 0)
     {
