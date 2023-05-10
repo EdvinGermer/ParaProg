@@ -90,7 +90,7 @@ int select_pivot(int *array, int n, int pivot_strategy, MPI_Comm comm)
     int size,rank, pivot;
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &size);
-    
+
     if (pivot_strategy == 1) // Median of processor 0 
     {
 
@@ -173,7 +173,10 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
     int *array = *array_ptr;
     
     // 3.1 Select Pivot element
-    pivot = select_pivot(array, n, pivot_strategy, comm);
+    if (n > 0)
+        pivot = select_pivot(array, n, pivot_strategy, comm);
+    else
+        pivot = 0; // pivot doesent matter if list is empty
 
     // 3.2 Split the array into two subarrays and send to other processor 
     int smaller_count = 0;
