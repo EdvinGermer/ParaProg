@@ -151,7 +151,10 @@ int select_pivot(int *array, int n, int pivot_strategy, MPI_Comm comm)
         MPI_Allreduce(&pivots, &sum_pivots, 1, MPI_INT, MPI_SUM, comm);
 
         // find mean of medians
-        pivot = sum_pivots[0]/sum_pivots[1];
+        if (sum_pivots[1] > 0)
+            pivot = sum_pivots[0]/sum_pivots[1];
+        else
+            pivot = 0;
 
     }
 
