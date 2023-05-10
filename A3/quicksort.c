@@ -87,20 +87,27 @@ int find_median(int *array, int n)
 
 int select_pivot(int *array, int n, int pivot_strategy, MPI_Comm comm)
 {
-    int size,rank,pivot;
-    int* pivots;
+    int size,rank, pivot;
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &size);
     
     if (pivot_strategy == 1) // Median of processor 0 
     {
+        int pivot;
+
         if (rank == 0) // Select the median on rank 0
         {
             pivot = find_median(array, n);
         }
+
+        // Broadcast pivot to all other processors in group
+        MPI_Bcast(&pivot, 1, MPI_INT, 0, comm);
     } 
     else if (pivot_strategy == 2) // Median of medians
     {
+        int pivot;
+        int *pivots;
+
         // find median
         pivot = find_median(array, n);
         
@@ -117,36 +124,38 @@ int select_pivot(int *array, int n, int pivot_strategy, MPI_Comm comm)
             quicksort(pivots,size);
             pivot = find_median(pivots, size);
         }
+
+        // FREE MEMORY
+        if (rank==0 && (pivot_strategy==2 || pivot_strategy==3))
+            free(pivots);
+
+        // Broadcast pivot to all other processors in group
+        MPI_Bcast(&pivot, 1, MPI_INT, 0, comm);
     } 
     else // Mean of medians  Pivot strategy 3
     {
-        // find median
-        pivot = find_median(array, n);
-        
-        // Allocate memory for all pivots
-        if (rank == 0)
-            pivots = (int*)malloc(size * sizeof(int));
-        
-        // gather pivot in pivots array on rank 0
-        MPI_Gather(&pivot, 1, MPI_INT, pivots, 1, MPI_INT, 0, comm); // Gather all pivots to processor 0
+        int pivots[2]; // actual pivot and if current list is 0
+        int sum_pivots[2];
+
+        // find median and number of nonzero lists
+        if (n > 0)
+        {
+            pivots[0] = find_median(array, n);
+            pivots[1] = 1;
+        }
+        else
+        {
+            pivots[0] = 0;
+            pivots[1] = 0;
+
+        }
+
+        MPI_Allreduce(&pivots, &sum_pivots, 1, MPI_INT, MPI_SUM, comm);
 
         // find mean of medians
-        if (rank == 0)
-        {
-            int sum=0;
-            for (int i=0;i<size;i++)
-                sum+=pivots[i];
+        pivot = sum_pivots[0]/sum_pivots[1];
 
-            pivot = sum/size;
-        }
     }
-
-    // Broadcast pivot to all other processors in group
-    MPI_Bcast(&pivot, 1, MPI_INT, 0, comm);
-
-    // FREE MEMORY
-    if (rank==0 && (pivot_strategy==2 || pivot_strategy==3))
-        free(pivots);
 
     return pivot;
 } 
