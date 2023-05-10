@@ -389,18 +389,11 @@ int main(int argc, char *argv[])
     }
 
     /* FIND LONGEST TIME */
-	double timings[size];
-	MPI_Gather(&local_execution_time, 1, MPI_DOUBLE, timings, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    double max;
+    MPI_Reduce(&local_execution_time, &max, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
 	if (rank == 0)
 	{
-		double max = 0;
-		for (int i=0; i<size;i++)
-		{
-			double time = timings[i];
-			if (time>max)
-				max = time;
-		}
 		printf("%f\n", max);
 	}
 
