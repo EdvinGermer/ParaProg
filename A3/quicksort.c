@@ -93,7 +93,6 @@ int select_pivot(int *array, int n, int pivot_strategy, MPI_Comm comm)
     
     if (pivot_strategy == 1) // Median of processor 0 
     {
-        int pivot;
 
         if (rank == 0) // Select the median on rank 0
         {
@@ -105,7 +104,6 @@ int select_pivot(int *array, int n, int pivot_strategy, MPI_Comm comm)
     } 
     else if (pivot_strategy == 2) // Median of medians
     {
-        int pivot;
         int *pivots;
 
         // find median
