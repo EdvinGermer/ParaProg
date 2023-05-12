@@ -5,6 +5,7 @@
 #SBATCH -p core -n 16
 #SBATCH -t 1:00:00
 #SBATCH -J quicksort
+#SBATCH -o weak_scaling_v2_%j.txt
 
 echo "Running quicksort"
 echo "running with pivot method 1"

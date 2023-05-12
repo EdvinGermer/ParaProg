@@ -1,0 +1,13 @@
+Extracting and entering A3 directory
+Building
+rm -f quicksort
+mpicc -g -O3 -o quicksort quicksort.c -lm
+OK
+Checking result of serial runs
+OK
+Checking format of output
+OK
+Checking result of parallel runs
+OK
+rm -f quicksort
+Your file is ready for submission. Well done!

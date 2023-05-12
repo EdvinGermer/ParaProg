@@ -5,27 +5,65 @@
 #include <mpi.h>
 #include<unistd.h>
 
+/*
+Parallel quicksort using MPI
+Assignment 3 - Parallel and Distributed Computing
 
-// Local insertion sort from the internet
-void insertion_sort(int *list, int n) 
+By:
+Claude Carlsson
+Edvin Germer
+Ture Hassler
+
+2023-05-07
+*/
+
+/* Local quicksort function from the internet */ 
+void quicksort(int *list, int n) 
 {
     // Initialize
-    int i, j, key;
+    int i, j, pivot, temp;
 
-    // Iterate through the list
-    for (i = 1; i < n; i++) 
+    // Base case
+    if (n < 2)
+        return;
+
+    // Else
+    pivot = list[n / 2]; 
+
+    for (i = 0, j = n - 1;; i++, j--)
     {
-        key = list[i];
-        j = i - 1;
+        while (list[i] < pivot)
+            i++;
+        while (pivot < list[j])
+            j--;
+        if (i >= j)
+            break;
 
-        // Move elements of list[0..i-1], that are greater than key, to one position ahead of their current position
-        while (j >= 0 && list[j] > key) 
-        {
-            list[j + 1] = list[j];
-            j = j - 1;
-        }
-        list[j + 1] = key;
+        temp = list[i];
+        list[i] = list[j];
+        list[j] = temp;
     }
+    quicksort(list, i);
+    quicksort(list + i, n - i);
+}
+
+// Merge lists function from internet
+void merge(int* arr1, int* arr2, int arr1_size, int arr2_size, int* result) {
+    int i = 0, j = 0, k = 0;
+    while (i < arr1_size && j < arr2_size) {
+        if (arr1[i] < arr2[j]) {
+            result[k++] = arr1[i++];
+        } else {
+            result[k++] = arr2[j++];
+        }
+    }
+    // Copy the remaining elements of arr1, if any
+    while (i < arr1_size)
+        result[k++] = arr1[i++];
+
+    // Copy the remaining elements of arr2, if any
+    while (j < arr2_size)
+        result[k++] = arr2[j++];
 }
 
 // print list function
@@ -49,20 +87,25 @@ int find_median(int *array, int n)
 
 int select_pivot(int *array, int n, int pivot_strategy, MPI_Comm comm)
 {
-    int size,rank,pivot;
-    int* pivots;
+    int size,rank, pivot;
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &size);
-    
+
     if (pivot_strategy == 1) // Median of processor 0 
     {
+
         if (rank == 0) // Select the median on rank 0
         {
             pivot = find_median(array, n);
         }
+
+        // Broadcast pivot to all other processors in group
+        MPI_Bcast(&pivot, 1, MPI_INT, 0, comm);
     } 
-    else if (pivot_strategy == 2) // Median of medians
+    else if (pivot_strategy == 2) // Select median of medians for all processes
     {
+        int *pivots;
+        
         // find median
         pivot = find_median(array, n);
         
@@ -76,43 +119,45 @@ int select_pivot(int *array, int n, int pivot_strategy, MPI_Comm comm)
         // sort pivots and find median of medians
         if (rank == 0)
         {
-            insertion_sort(pivots,size);
+            quicksort(pivots,size);
             pivot = find_median(pivots, size);
         }
+
+        // FREE MEMORY
+        if (rank==0)
+            free(pivots);
+
+        // Broadcast pivot to all other processors in group
+        MPI_Bcast(&pivot, 1, MPI_INT, 0, comm);
     } 
     else // Mean of medians  Pivot strategy 3
     {
-        // find median
-        pivot = find_median(array, n);
-        
-        // Allocate memory for all pivots
-        if (rank == 0)
-            pivots = (int*)malloc(size * sizeof(int));
-        
-        // gather pivot in pivots array on rank 0
-        MPI_Gather(&pivot, 1, MPI_INT, pivots, 1, MPI_INT, 0, comm); // Gather all pivots to processor 0
+        int pivots[2]; // actual pivot and if current list is 0
+        int sum_pivots[2];
+
+        // find median and number of nonzero lists
+        if (n > 0)
+        {
+            pivots[0] = find_median(array, n);
+            pivots[1] = 1;
+        }
+        else
+        {
+            pivots[0] = 0;
+            pivots[1] = 0;
+        }
+        MPI_Allreduce(&pivots, &sum_pivots, 2, MPI_INT, MPI_SUM, comm);
 
         // find mean of medians
-        if (rank == 0)
-        {
-            int sum=0;
-            for (int i=0;i<size;i++)
-                sum+=pivots[i];
-
-            pivot = sum/size;
-        }
+        if (sum_pivots[1] > 0)
+            pivot = sum_pivots[0]/sum_pivots[1];
+        else
+            pivot = 0;
     }
-
-    // Broadcast pivot to all other processors in group
-    MPI_Bcast(&pivot, 1, MPI_INT, 0, comm);
-
-    // FREE MEMORY
-    if (rank==0 && (pivot_strategy==2 || pivot_strategy==3))
-        free(pivots);
-
     return pivot;
 } 
 
+// Inner loop of parallel quicksort algorithm
 int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 {
     int pivot,rank,size,length;
@@ -129,7 +174,7 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
     // 3.1 Select Pivot element
     pivot = select_pivot(array, n, pivot_strategy, comm);
 
-    /// 3.2 Split the array into two subarrays and send to other processor 
+    // 3.2 Split the array into two subarrays and send to other processor 
     int smaller_count = 0;
     for (int i = 0; i < n; i++)
         if (array[i] <= pivot)
@@ -139,45 +184,78 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 
     // Exchange send_count
     int recv_count = 0;
+    MPI_Request req_send, req_recv;
+    MPI_Status status;
     if (rank >= size / 2) // Send smaller to the left:  0-2, 1-3
     {
-        MPI_Send(&smaller_count, 1, MPI_INT, rank - size/2, 0, comm); // Send nr of smaller elements
-        MPI_Recv(&recv_count, 1, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE); // Receive recv_count
+        MPI_Isend(&smaller_count, 1, MPI_INT, rank - size/2, 0, comm, &req_send); // Send nr of smaller elements
+        MPI_Irecv(&recv_count, 1, MPI_INT, rank - size/2, 0, comm, &req_recv); // Receive recv_count
     } 
     else // Send larger to the right:   
     {
-        MPI_Recv(&recv_count, 1, MPI_INT, rank + size/2, 0, comm, MPI_STATUS_IGNORE);
-        MPI_Send(&larger_count, 1, MPI_INT, rank + size/2, 0, comm);
+        MPI_Irecv(&recv_count, 1, MPI_INT, rank + size/2, 0, comm, &req_recv);
+        MPI_Isend(&larger_count, 1, MPI_INT, rank + size/2, 0, comm, &req_send);
     }
+    // Wait to recieve
+    MPI_Wait(&req_recv, &status);
+    MPI_Wait(&req_send, &status);
 
     // Send list elements
     int* temp = (int*)malloc(recv_count * sizeof(int));
+    int* temp_keep; // part of array we are keeping (smaller or larger elements)
+
     if (rank >= size / 2) // Send smaller to the left:  0-2, 1-3
     {
-        MPI_Ssend(array, smaller_count, MPI_INT, rank - size/2, 0, comm); 
-        MPI_Recv(temp, recv_count, MPI_INT, rank - size/2, 0, comm, MPI_STATUS_IGNORE); 
-        memcpy(&array[0],&array[smaller_count], larger_count * sizeof(int)); // move elements to start
-        length = larger_count + recv_count;
+        MPI_Isend(array, smaller_count, MPI_INT, rank - size/2, 0, comm, &req_send); 
+        MPI_Irecv(temp, recv_count, MPI_INT, rank - size/2, 0, comm, &req_recv); 
+        temp_keep = (int*)malloc(larger_count * sizeof(int));
+        memcpy(temp_keep,&array[smaller_count], larger_count * sizeof(int)); // copy elements to keep
+
+        // Wait to send
+        MPI_Wait(&req_send, &status);
+
+        // realloc for array
+         length = recv_count + larger_count;
         if (length!=0)
-            {
-                array = (int*)realloc(array, (length) * sizeof(int));
-                memcpy(&array[larger_count],temp, recv_count * sizeof(int)); // append temp to end
-            }
+        {
+            array = (int*)realloc(array, (length) * sizeof(int));
+        }
+
+        // wait to recieve
+        MPI_Wait(&req_recv, &status);
+
+        // merge temp and temp_keep into array
+        merge(temp_keep, temp, larger_count, recv_count, array);
+  
     } 
     else // Send larger to the right:   
     {
-        MPI_Recv(temp, recv_count, MPI_INT, rank + size/2, 0, comm, MPI_STATUS_IGNORE);
-        MPI_Ssend(&array[smaller_count], larger_count, MPI_INT, rank + size/2, 0, comm);
-        length = smaller_count + recv_count;
+        MPI_Irecv(temp, recv_count, MPI_INT, rank + size/2, 0, comm, &req_recv);
+        MPI_Isend(&array[smaller_count], larger_count, MPI_INT, rank + size/2, 0, comm, &req_send);
+        temp_keep = (int*)malloc(smaller_count * sizeof(int));
+        memcpy(temp_keep, array, smaller_count * sizeof(int)); // copy elements to keep
+
+        // Wait to send
+        MPI_Wait(&req_send, &status);
+
+        // realloc for array
+        length = recv_count + smaller_count;
         if (length!=0)
-            {
-                array = (int*)realloc(array, (length) * sizeof(int)); // realloc at end of array
-                memcpy(&array[smaller_count],temp, recv_count * sizeof(int)); // append temp to end
-            }
+        {
+            array = (int*)realloc(array, (length) * sizeof(int));
+        }
+
+        // wait to recieve
+        MPI_Wait(&req_recv, &status); 
+
+        // merge temp and temp_keep into array
+        merge(temp_keep, temp, smaller_count, recv_count, array);
     }
 
-    // Local Sort
-    insertion_sort(array, length);
+    // free temp and temp_keep
+    free(temp_keep);
+    if (recv_count!=0)
+        free(temp);
 
     // Split into groups
     MPI_Comm new_comm;
@@ -189,8 +267,6 @@ int par_quicksort(int **array_ptr, int n, int pivot_strategy, MPI_Comm comm)
 
     // Finalize and free
     MPI_Comm_free(&new_comm);
-    if (recv_count!=0)
-        free(temp);
     return final_length;
 }
 
@@ -248,6 +324,8 @@ int main(int argc, char *argv[])
         fclose(input);
     }
 
+    /* WAIT FOR DATA TO BE LOADED */
+    MPI_Barrier(MPI_COMM_WORLD);
 
     /* DISTRIBUTE DATA */
     double start = MPI_Wtime(); // Record the start time
@@ -256,19 +334,21 @@ int main(int argc, char *argv[])
     // Determine local_list size
     int m = n / size;
     int remainder = n % size;
-    if (rank < remainder)
-        m =  m + 1;
+    if (rank < remainder)  // first ranks get remainder
+        m = m + 1;
         
-    int* send_counts = (int*)malloc(size * sizeof(int));
-    int* displs = (int*)malloc(size * sizeof(int));
+    int* send_counts, *displs; 
     if (rank == 0)
     {
+        send_counts = (int*)malloc(size * sizeof(int)); // how many to send to each rank
+        displs = (int*)malloc(size * sizeof(int));      // index where to start
+        
         for (int i = 0; i < size; i++)
         {
             if (i < remainder)
-                send_counts[i] = n / size + 1;
+                send_counts[i] = n/size+1;
             else
-                send_counts[i] = n / size;
+                send_counts[i] = n/size;
 
             if (i > 0)
                 displs[i] = displs[i - 1] + send_counts[i - 1];
@@ -283,9 +363,8 @@ int main(int argc, char *argv[])
     // Scatter data
     MPI_Scatterv(big_list, send_counts, displs, MPI_INT, local_list, m, MPI_INT, 0, MPI_COMM_WORLD);
 
-
     /* SORT LOCALLY */
-    insertion_sort(local_list,m);
+    quicksort(local_list, m);
 
     /* CALL PARALLEL QUICKSORT */
     int final_length = par_quicksort(&local_list, m, pivot_strategy, MPI_COMM_WORLD);
@@ -296,53 +375,54 @@ int main(int argc, char *argv[])
         lengths = (int*) malloc(size * sizeof(int));
     MPI_Gather(&final_length, 1, MPI_INT, lengths, 1, MPI_INT, 0, MPI_COMM_WORLD);
     
-    /* PRINT LOCAL LISTS */
-    /* printf("_________________________________\nRANK %d: SORTED LOCAL_LIST:\n",rank);
-    print_list(local_list, final_length); */
-
-    /* GATHER SORTED LOCAL ARRAYS */
+     /* GATHER SORTED LOCAL ARRAYS */
     if (rank == 0)
     {
+        // allocate
+        MPI_Request* requests = (MPI_Request*)malloc((size-1) * sizeof(MPI_Request));
+        MPI_Status* status = (MPI_Status*)malloc((size-1) * sizeof(MPI_Status));
+        
         // Find displacements
         displs = (int *)malloc(size * sizeof(int));
         displs[0] = 0;
         for (int i = 1; i < size; i++)
             displs[i] = displs[i - 1] + lengths[i - 1];
-    
+
         // Save local_lists to big_list
         memcpy(big_list, local_list, final_length * sizeof(int)); // Copy rank 0 data directly
         for (int i = 1; i < size; i++)
-            MPI_Recv(big_list + displs[i], lengths[i], MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Irecv(big_list + displs[i], lengths[i], MPI_INT, i, 0, MPI_COMM_WORLD, &requests[i-1]); // Non-blocking receive
+
+        // Wait for all non-blocking receives to complete
+        MPI_Waitall(size-1, requests, status);
+        free(requests);
+        free(status);
     }
     else // Send local_list to rank 0
-        MPI_Send(local_list, final_length, MPI_INT, 0, 0, MPI_COMM_WORLD);
-
+    {
+        MPI_Request request;
+        MPI_Status status;
+        MPI_Isend(local_list, final_length, MPI_INT, 0, 0,MPI_COMM_WORLD, &request); // Non-blocking send
+        MPI_Wait(&request, &status);
+    }
 
     /* LOCAL TIME */
 	double local_execution_time = MPI_Wtime() - start;
     
     /* SAVE LIST TO OUTPUT FILE */
-    /* if (rank == 0) {
+    if (rank == 0) {
         FILE* output = fopen(argv[2], "w");
         for (int i = 0; i < n; i++)
             fprintf(output, "%d ", big_list[i]);
             fclose(output);
-    } */
-
+    }
 
     /* FIND LONGEST TIME */
-	double timings[size];
-	MPI_Gather(&local_execution_time, 1, MPI_DOUBLE, timings, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    double max;
+    MPI_Reduce(&local_execution_time, &max, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
 	if (rank == 0)
 	{
-		double max = 0;
-		for (int i=0; i<size;i++)
-		{
-			double time = timings[i];
-			if (time>max)
-				max = time;
-		}
 		printf("%f\n", max);
 	}
 
@@ -350,7 +430,8 @@ int main(int argc, char *argv[])
     if (rank==0)
     {
         free(big_list);
-        free(lengths);   
+        free(lengths); 
+        free(send_counts);
         free(displs);
     }
     if (final_length!=0)

@@ -1,0 +1,20 @@
+Running quicksort
+running with pivot method 1
+15.868618
+9.113244
+4.888918
+3.076349
+4.181176
+running with pivot method 2
+15.865114
+9.101792
+6.193918
+4.861603
+4.153885
+running with pivot method 3
+16.079840
+9.266160
+6.038823
+4.601438
+4.159547
+All done!
