@@ -12,7 +12,7 @@ module load gcc openmpi
 
 echo "Running Monte Carlo Sim"
 
-mpirun --bind-to none -n 64 ./montecarlo 6400000
+mpirun --bind-to none -n 80 ./montecarlo 4000000
 
 
 
