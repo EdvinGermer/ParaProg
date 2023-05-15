@@ -50,9 +50,11 @@ int main(int argc, char *argv[])
         return -1;
     }
     
+    
     /* HOW MANY EXPERIMENTS PER PROCESS */
     N = atoi(argv[1]); // Total number of experiments
     n = N/size;           // Experiments per process
+
 
     /* DEFINE MATRIX P */
     int P[15][7] = {
@@ -73,20 +75,24 @@ int main(int argc, char *argv[])
     {0, 0, 0, 0, 0, 0, -1}
     };
 
+
     /* START LOCAL TIME */
     double start = MPI_Wtime();
 
+
     /* MONTE CARLO SIMULATION */
-    int **X = calloc(7, sizeof(int*));
+    int **X = calloc(7, sizeof(int*)); // Big result matrix
     for (int i=0; i<7; i++)
         X[i] = calloc(n, sizeof(int));
-    
-    
-    srand(time(NULL)+rank); // Random seed for each rank
+
+    int x[7]; // Initial state vector
+
+    srand(time(NULL)+rank);// Random seed for each rank
 
     for (int i=0;i<n;i++)  
     {
-        int x[7] = {900,900,30,330,50,270,20};  // Initial state vector
+        // Initialize
+        x[0]=900; x[1]=900; x[2]=30; x[3]=330; x[4]=50; x[5]=270; x[6]=20;
         
         // Do experiment (simulation)
         t=0;
@@ -132,13 +138,6 @@ int main(int argc, char *argv[])
             X[row][i] = x[row];   // save x as a column in X
     }
 
-    /* SANITY CHECK */
-    /* printf("Rank %d: \n", rank);
-    for (int i=0;i<n;i++)
-        printf("%d, ", X[0][i]);
-    printf("\n"); */
-
-
     /* EXTRACT SUSCEPTIBLE HUMANS */
     int* local_res = (int*)malloc(n * sizeof(int));
 
@@ -165,12 +164,6 @@ int main(int argc, char *argv[])
 
     MPI_Allreduce(&local_max, &global_max, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
     MPI_Allreduce(&local_min, &global_min, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
-    
-
-    /* SANITY CHECK */
-    //printf("RANK %d:  local_max = %d, local_min = %d\n",rank, local_max, local_min);
-    //if (rank==0)
-    //    printf("RANK %d:  global_max = %d, global_min = %d\n",rank, global_max, global_min);
 
 
     /* LOCAL HISTOGRAM */
@@ -180,7 +173,6 @@ int main(int argc, char *argv[])
     for (int i=0;i<b;i++)
         bins[i] = global_min + i*interval;
     bins[b] = global_max;
-    
 
     int freqs[20] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // count each bin
     int bin;

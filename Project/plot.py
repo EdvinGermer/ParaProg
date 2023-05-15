@@ -16,7 +16,7 @@ mid_points = [(boundaries[i]+boundaries[i+1])/2 for i in range(len(boundaries)-1
 plt.bar(mid_points, counts, width=np.diff(boundaries), align='center', edgecolor='black')
 
 # Add labels and title
-plt.xlabel('Boundaries')
+plt.xlabel('Susceptible humans')
 plt.ylabel('Counts')
 plt.title('MC Simulation of Malara Epidemic')
 
