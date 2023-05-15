@@ -18,7 +18,7 @@ plt.bar(mid_points, counts, width=np.diff(boundaries), align='center', edgecolor
 # Add labels and title
 plt.xlabel('Susceptible humans')
 plt.ylabel('Counts')
-plt.title('MC Simulation of Malara Epidemic')
+plt.title('MC Simulation of Malara Epidemic with 100.000 runs')
 
 # Show plot
 plt.savefig("histogram.png")

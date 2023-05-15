@@ -19,23 +19,24 @@ fig, axs = plt.subplots(1, 2, figsize=(12, 6))
 # First subplot
 axs[0].plot(x, y, label="Measurements")
 axs[0].plot(x, y_teo, label="Ideal")
-axs[0].set_xlabel('Processes')
-axs[0].set_ylabel('Time (s)')
-axs[0].set_title('Strong Scaling of MC Simulation')
+axs[0].set_xlabel('Processes', fontsize=14)
+axs[0].set_ylabel('Time (s)', fontsize=14)
+axs[0].set_title('Strong Scaling - Time Measurements', fontsize=18)
 axs[0].legend()
 axs[0].grid(True)
 
 # Second subplot
 axs[1].plot(x, speedup, label="Speedup")
 axs[1].plot(x, ideal_speedup, label="Ideal speedup")
-axs[1].set_xlabel('Processes')
-axs[1].set_ylabel('Speedup')
-axs[1].set_title('Speedup of MC Simulation')
+axs[1].set_xlabel('Processes', fontsize=14)
+axs[1].set_ylabel('Speedup', fontsize=14)
+axs[1].set_title('Strong Scaling - Speedup', fontsize=18)
 axs[1].legend()
 axs[1].grid(True)
 
 # Settings
 plt.rcParams.update({'font.size': 14})
+
 
 # Show the plot
 plt.savefig('strong_scaling.png')
