@@ -1,0 +1,8 @@
+module load gcc openmpi
+
+squeue -u edge98 -M snowy
+squeue -u edge98 -M snowy -o "%.18i %.9P %.8j %.8u %.2t %.10M %.6D %R"
+
+scancel -i -u edge98
+
+sacct -j 7833735 --format=JobID,JobName,MaxRSS
